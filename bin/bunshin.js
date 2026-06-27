@@ -5,10 +5,12 @@
 //   bunshin setup [options]  guided, interactive setup (a Claude Code session)
 //   bunshin init  [options]  write a bunshin.config.json into the current repo (no prompts)
 //   bunshin run   [options]  launch the Claude Code /loop that drains the queue
+//   bunshin watch [options]  serve the multi-repo status dashboard on localhost
 
 const { init } = require('../src/init');
 const { setup } = require('../src/setup');
 const { run } = require('../src/run');
+const { watch } = require('../src/watch');
 const { readVersion } = require('../src/util');
 
 function printHelp() {
@@ -24,6 +26,8 @@ Commands:
   init      Just write a bunshin.config.json into the current repo (no prompts; the
             driver + agent briefs are served from this package at run time).
   run       Launch the self-paced Claude Code /loop that drains the queue.
+  watch     Serve a localhost dashboard of every repo running Bunshin on this
+            machine (liveness, current gate, current goal). Reads ~/.bunshin/.
 
 setup / init options:
   --dir <path>          Target repo root (default: the current git repo / cwd).
@@ -40,6 +44,10 @@ run options:
   --once                Process exactly one goal, then stop.
   --unattended          Pass --dangerously-skip-permissions to Claude Code (hands-off; use with care).
 
+watch options:
+  --port <n>            Port for the dashboard (default: 4317).
+  --open                Open the dashboard in your default browser.
+
 Global:
   -h, --help            Show this help.
   -v, --version         Show the version.
@@ -50,7 +58,7 @@ function parseArgs(argv) {
   const opts = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--once' || a === '--unattended' || a === '--force') {
+    if (a === '--once' || a === '--unattended' || a === '--force' || a === '--open') {
       opts[a.slice(2)] = true;
     } else if (a.startsWith('--')) {
       const key = a.slice(2);
@@ -92,6 +100,9 @@ async function main() {
       break;
     case 'run':
       await run(opts);
+      break;
+    case 'watch':
+      watch(opts);
       break;
     case undefined:
       printHelp();

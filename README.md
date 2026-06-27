@@ -109,6 +109,24 @@ npx github:cidfenix/bunshin run --unattended    # skip Claude Code permission pr
 `run` refuses to start if the working tree is dirty (it fast-forward-merges finished goals into the
 current tree) or if there's no `bunshin.config.json` yet.
 
+### `watch` — one dashboard for every running repo
+
+Running Bunshin in several repos at once? `watch` serves a single localhost dashboard showing them
+all: which loops are alive, the goal each is on, and which of the three gates it's in.
+
+```bash
+npx github:cidfenix/bunshin watch            # serve at http://127.0.0.1:4317
+npx github:cidfenix/bunshin watch --open     # …and open it in your browser
+npx github:cidfenix/bunshin watch --port 5000
+```
+
+Every `bunshin run` registers itself in a shared per-user home, **`~/.bunshin/`** — that directory is
+what relates your repos. `run` records each repo's identity and process there; the driver writes a
+small heartbeat as it moves through the gates. `watch` is a **pure file reader** (zero deps, no tracker
+credentials): it never calls Jira/Trello — the driver, which already queries the tracker each
+iteration, stamps the current card and queue counts into the heartbeat for it. A repo shows as
+**running**, **stale** (PID alive but the heartbeat went quiet — a likely stuck gate), or **stopped**.
+
 ## How a goal flows
 
 1. The driver takes the first **Pending** card, moves it to **In Progress**, and cuts an isolated

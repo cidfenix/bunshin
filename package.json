@@ -5,6 +5,9 @@
   "bin": {
     "bunshin": "bin/bunshin.js"
   },
+  "scripts": {
+    "test": "node test/registry.test.js && node test/watch.test.js && node test/run.test.js && node test/server.smoke.js"
+  },
   "type": "commonjs",
   "files": [
     "bin",

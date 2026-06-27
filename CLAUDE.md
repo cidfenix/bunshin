@@ -18,8 +18,8 @@ board — see "Two halves" below.)
 ## Two halves of this repo
 
 1. **The CLI** (`bin/`, `src/`) — what a maintainer installs (`npm i -g github:cidfenix/bunshin`). It
-   has three commands (`setup` / `init` / `run`) and does almost nothing on its own; it writes the
-   config and launches Claude Code.
+   has four commands (`setup` / `init` / `run` / `watch`) and does almost nothing on its own; it writes
+   the config, launches Claude Code, and (`watch`) serves a read-only dashboard.
 2. **The pipeline** (`template/`) — generic markdown that a launched Claude Code session *reads and
    follows*: `driver.md` (the autonomous `/loop` that drains the queue) + three agent briefs, plus
    `setup.md` (an **interactive** guide the `setup` session follows to configure the repo). All served
@@ -32,7 +32,9 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 ## Architecture (LOCKED decisions)
 
 1. **Config-only model.** The ONLY thing Bunshin adds to a consuming repo is a single
-   **`bunshin.config.json`** at its root (+ `.bunshin/artifacts/` screenshot output). The driver and
+   **`bunshin.config.json`** at its root (+ `.bunshin/artifacts/` screenshot output). (Separately, at
+   the *user* level — not in any repo — `run`/`watch` use a shared **`~/.bunshin/`** home for the
+   cross-repo dashboard registry + heartbeats; see `src/registry.js`.) The driver and
    the three agent briefs are **served from the installed package** — `bunshin run` hands Claude Code
    the absolute path to `template/driver.md`, whose briefs sit in `template/agents/` beside it. This
    is the no-duplication win: one canonical pipeline, every repo just owns its config (like
@@ -76,7 +78,9 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 | `bin/bunshin.js` | CLI entry: arg parsing, `--help`/`--version`, dispatch to `setup`/`init`/`run`. |
 | `src/init.js` | `init` — render `template/bunshin.config.template.json` (token substitution) → `bunshin.config.json` at the repo root. Exports `ensureConfig()` (write-if-missing), reused by `setup`. |
 | `src/setup.js` | `setup` — `ensureConfig()` then `spawn` Claude Code (a plain interactive session, no `/loop`) pointed at `template/setup.md`. `buildSetupPrompt()` is the unit-testable core. |
-| `src/run.js` | `run` — guards (git repo · config present · clean tree · `claude` on PATH), build the `/loop` prompt pointing at the package driver, `spawn` Claude Code. `buildPrompt()` is the unit-testable core. |
+| `src/run.js` | `run` — guards (git repo · config present · clean tree · `claude` on PATH), build the `/loop` prompt pointing at the package driver, `spawn` Claude Code. Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. |
+| `src/registry.js` | The shared per-user home `~/.bunshin/` that relates every running repo: `repoIdFor()`, `register()`, `markStopped()`, `readAll()`, atomic writes. Keyed by `repoId` = sha256(repo path)[:12]. |
+| `src/watch.js` | `watch` — zero-dep localhost dashboard (built-in `http`). Pure file aggregator over `~/.bunshin/` (registry + per-repo heartbeats); never calls a tracker. `buildStatusPayload()` (liveness: running/stale/stopped) is the unit-testable core. |
 | `src/util.js` | Helpers: `CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`. |
 | `template/driver.md` | The autonomous `/loop` driver procedure (the pipeline). |
 | `template/setup.md` | The **interactive** setup guide the `setup` session follows (asks the user, fills the config, installs MCPs). |
@@ -101,12 +105,14 @@ in `template/driver.md` — read it before changing pipeline behaviour.
 
 - **No dependencies, no build, no transpile.** CommonJS, Node ≥ 18 built-ins only. If you reach for an
   npm package, stop — there's almost always a built-in.
-- **No test framework** (keeps deps zero). Verify changes with ad-hoc Node smoke tests and by running
-  the CLI directly:
+- **No test framework** (keeps deps zero). Tests are plain-Node `assert` scripts in `test/`, run via
+  `npm test` (which is also this repo's `gateChecks`). Add a failing test there first, then the code.
+  You can also verify by running the CLI directly:
   ```bash
+  npm test
   node bin/bunshin.js --help
   node bin/bunshin.js init --dir /tmp/throwaway-repo --name Demo --board-id X   # writes only bunshin.config.json
-  node -e "console.log(require('./src/run').buildPrompt('Demo', false, 'X/driver.md'))"
+  node -e "console.log(require('./src/run').buildPrompt('Demo', false, 'X/driver.md', 'S/status.json'))"
   ```
   For local end-to-end, `npm link` makes `bunshin` a global command pointing at this checkout.
 - **Cross-platform.** Primary dev is Windows; use `path` (never hardcode separators) and forward-slash

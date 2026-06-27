@@ -11,13 +11,27 @@ const {
   hasExecutable,
   exists,
 } = require('./util');
+const reg = require('./registry');
 
-function readProjectName(configPath) {
+// Pull the identity facts the dashboard shows, straight from the repo config. Tracker is the
+// Jira project key or the Trello board name, per provider.
+function readConfigSummary(configPath) {
   try {
     const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    return (cfg.project && cfg.project.name) || (cfg.board && cfg.board.boardName) || 'project';
+    const provider = (cfg.provider && cfg.provider.kind) || 'jira';
+    const tracker =
+      provider === 'trello'
+        ? cfg.board && cfg.board.boardName
+        : cfg.jira && cfg.jira.projectKey;
+    return {
+      projectName: (cfg.project && cfg.project.name) || (cfg.board && cfg.board.boardName) || 'project',
+      provider,
+      tracker: tracker || null,
+      baseBranch: (cfg.git && cfg.git.baseBranch) || null,
+      mergeMode: (cfg.merge && cfg.merge.mode) || 'auto',
+    };
   } catch {
-    return 'project';
+    return { projectName: 'project', provider: 'jira', tracker: null, baseBranch: null, mergeMode: 'auto' };
   }
 }
 
@@ -25,15 +39,20 @@ function readProjectName(configPath) {
 // root. We hand Claude Code the absolute path to the package driver so one canonical copy
 // drives every repo. The driver itself reads ./bunshin.config.json and dispatches the
 // agent briefs that sit in `agents/` beside it.
-function buildPrompt(projectName, once, driverPath) {
+function buildPrompt(projectName, once, driverPath, statusFile) {
   const scope = once
-    ? "process EXACTLY ONE goal from the Trello board's Pending list"
-    : "process goals from the Trello board's Pending list serially until Pending is empty";
+    ? "process EXACTLY ONE goal from the Pending column"
+    : "process goals from the Pending column serially until Pending is empty";
   const driver = driverPath.split(/[\\/]/).join('/');
+  const heartbeat = statusFile
+    ? `As you work, write progress heartbeats to the status file at ${statusFile.split(/[\\/]/).join('/')} ` +
+      `following the driver's Heartbeat contract (best-effort; never fail the loop if the write fails). `
+    : '';
   return (
     `Execute the ${projectName} Bunshin: read the Bunshin driver at ${driver} (its agent briefs are ` +
     `in the agents/ folder beside it) and follow it to ${scope} -- each through all three gates to a ` +
     `fast-forward merge. The per-repo config is ${CONFIG_FILENAME} at the root of the current repo. ` +
+    heartbeat +
     `Then stop until the next scheduled run.`
   );
 }
@@ -72,9 +91,15 @@ async function run(opts) {
   const interval = opts.interval || '20m';
   const once = Boolean(opts.once);
   const unattended = Boolean(opts.unattended);
-  const projectName = readProjectName(configPath);
+  const summary = readConfigSummary(configPath);
+  const projectName = summary.projectName;
 
-  const prompt = buildPrompt(projectName, once, packageDriverPath());
+  // Register this repo in the shared ~/.bunshin/ home so `bunshin watch` can see it, and tell
+  // the driver where to heartbeat. statusFile depends only on the repo path (not the PID).
+  const repoId = reg.repoIdFor(root);
+  const statusFile = reg.statusFileFor(repoId);
+
+  const prompt = buildPrompt(projectName, once, packageDriverPath(), statusFile);
   const loopCmd = `/loop ${interval} ${prompt}`;
 
   console.log(
@@ -96,7 +121,29 @@ async function run(opts) {
   const command = `claude ${args.join(' ')} ${quoted}`.replace(/\s+/g, ' ').trim();
 
   const child = spawn(command, { stdio: 'inherit', shell: true, cwd: root });
+
+  // Best-effort registration; a registry write failure must never block the actual loop.
+  try {
+    reg.register({
+      repoPath: root,
+      projectName,
+      provider: summary.provider,
+      tracker: summary.tracker,
+      baseBranch: summary.baseBranch,
+      mergeMode: summary.mergeMode,
+      pid: child.pid,
+      startedAt: new Date().toISOString(),
+    });
+  } catch {
+    /* dashboard is optional; keep going */
+  }
+
   child.on('exit', (code) => {
+    try {
+      reg.markStopped(repoId);
+    } catch {
+      /* ignore */
+    }
     process.exitCode = code == null ? 0 : code;
   });
 }

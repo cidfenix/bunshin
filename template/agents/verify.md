@@ -59,6 +59,8 @@ benign-console-error allowlist) live in **`bunshin.config.json`** (the
    leftover processes or untracked Playwright files.
 
 ## Output
-Report PASS or FAIL. On FAIL, give the specific reason: the console error text, the missing element,
+Report PASS or FAIL. On PASS, include the committed screenshot's repo-relative path
+(`<artifactsDir>/<N>-<slug>.png`) so the driver can surface it in its heartbeat (`lastScreenshot`).
+On FAIL, give the specific reason: the console error text, the missing element,
 or the crash. If the dev server itself failed to boot, report
 `FAIL — infra: dev server did not boot` so the driver records it as a flake.

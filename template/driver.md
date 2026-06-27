@@ -16,6 +16,9 @@ Run this as a self-paced `/loop`. Do exactly one iteration per turn, then either
 **Pending** column still has goals) or end the turn (the `/loop` mechanism re-invokes the driver after
 its idle interval — no manual scheduling is needed).
 
+If the launch prompt gave you a **status file** path, emit progress heartbeats as you go — see
+**Heartbeat (live status for `bunshin watch`)** below. It is best-effort telemetry only.
+
 ## The queue (Trello or Jira)
 
 `provider.kind` in the config selects the tracker — **`jira`** (default; absent ⇒ jira) or
@@ -91,6 +94,42 @@ constraint.)
      an empty dir over it, e.g. `robocopy <empty> <worktree> /MIR` then remove both), then run
      `git worktree prune`. The branch is kept regardless.
 7. If **Pending** still has issues, loop immediately (no wait). Otherwise go to step 1's idle path.
+
+## Heartbeat (live status for `bunshin watch`)
+
+When the launch prompt gives you a **status file** path (under the user's `~/.bunshin/status/`), keep
+it updated so the `bunshin watch` dashboard can show what this repo is doing. This is **best-effort
+telemetry: a failed heartbeat write must NEVER fail or stall the loop** — wrap it so any error is
+ignored, and never let it change the gate outcome.
+
+Each write **overwrites** the file with a single JSON object (use the `Write` tool, or `node -e`):
+
+```json
+{
+  "updatedAt": "<ISO-8601 now>",
+  "phase": "gate2",
+  "action": "short human label of the current step",
+  "card": { "ref": "<N>", "title": "<goal title>", "url": "<tracker URL or null>" },
+  "worktree": "<git.worktreeBaseDir>/<N>-<slug>",
+  "queue": { "pending": 5, "inProgress": 1, "blocked": 1, "done": 18 },
+  "lastScreenshot": "<artifactsDir>/<N>-<slug>.png or null",
+  "blockedReason": null
+}
+```
+
+- `phase` is one of: `booting` · `gate1` · `gate2` · `gate3` · `merge` · `blocked` · `idle`.
+- `card.url` = Jira `<jira.baseUrl>/browse/<N>` or the Trello card URL (null if unknown).
+- `queue` counts come straight from the column reads you already do this iteration (best-effort).
+- `lastScreenshot` is the repo-relative path the verify agent committed in Gate 2 (else `null`).
+
+**Write a heartbeat at each of these moments** (always refresh `updatedAt`, and stamp `queue` whenever
+you have just read the columns):
+- After taking an issue and creating its worktree (step 4): `phase: "booting"`, `card` filled.
+- Entering each gate: `phase: "gate1" | "gate2" | "gate3"`, with a fitting `action`. After Gate 2's
+  verify agent commits its screenshot, set `lastScreenshot`.
+- Entering INTEGRATION: `phase: "merge"`.
+- On PARK: `phase: "blocked"`, `blockedReason: "<the park reason>"`.
+- When **Pending** is empty and nothing is In Progress (idle path): `phase: "idle"`, `card: null`.
 
 ## GATE 1 — implement + deterministic checks
 - Dispatch the implement agent with the `Agent` tool (`subagent_type: general-purpose`), passing the
