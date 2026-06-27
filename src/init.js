@@ -56,8 +56,8 @@ function printNextSteps(targetRoot) {
 
   console.log('\n✅ Bunshin ready.\n');
   console.log('Next steps:');
-  console.log(`  1. Edit ${CONFIG_FILENAME} — set provider.kind (trello | jira), fill in the board id`);
-  console.log('     (Trello) or baseUrl/projectKey (Jira), and your install / gate / dev-server commands.');
+  console.log(`  1. Edit ${CONFIG_FILENAME} — set provider.kind (jira | trello; default jira), fill in`);
+  console.log('     baseUrl/projectKey (Jira) or the board id (Trello), and your gate / dev-server commands.');
   console.log('  2. Create the queue with four columns (defaults: Pending, In Progress, Blocked, Done —');
   console.log('     or your own names under board.lists / jira.statuses). For PR mode (merge.mode="pr"),');
   console.log('     also add an "In Review" column + set up gh / a GitHub MCP.');

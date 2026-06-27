@@ -52,7 +52,7 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 4. **The tracker IS the queue.** A goal is one card/issue; status is encoded by which column it's in
    (Pending → In Progress → Blocked → Done). No queue file — the run is crash-resumable from the
    tracker. Execution is **serial** and parks on the **first** gate failure (no auto-repair/retry).
-   The tracker is pluggable via `provider.kind` (**`trello`** default, or **`jira`**): a
+   The tracker is pluggable via `provider.kind` (**`jira`** default, or **`trello`**): a
    provider-adapter table in `template/driver.md` maps each queue op (list columns, read a column,
    move a goal, comment) to Trello (`mcp__trello__*`) vs a Jira MCP (transitions/JQL); columns come
    from `board.lists` (Trello) or `jira.statuses` (Jira). Column names are matched tolerantly (aliases

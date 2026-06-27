@@ -7,8 +7,8 @@
   },
 
   "provider": {
-    "$comment": "Which task tracker backs the queue: 'trello' (default) or 'jira'. Selects which MCP server the driver drives and whether columns come from board.lists (Trello) or jira.statuses (Jira). Absent ⇒ 'trello' (back-compat). Configure the matching block below; the other can be left as-is or deleted.",
-    "kind": "trello"
+    "$comment": "Which task tracker backs the queue: 'jira' (default) or 'trello'. Selects which MCP server the driver drives and whether columns come from jira.statuses (Jira) or board.lists (Trello). Absent ⇒ 'jira'. Configure the matching block below; the other can be left as-is or deleted.",
+    "kind": "jira"
   },
 
   "board": {

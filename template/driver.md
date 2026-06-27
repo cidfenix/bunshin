@@ -18,8 +18,8 @@ its idle interval — no manual scheduling is needed).
 
 ## The queue (Trello or Jira)
 
-`provider.kind` in the config selects the tracker — **`trello`** (default; absent ⇒ trello) or
-**`jira`**. The queue is a set of **goals** (Trello cards / Jira issues) arranged in **columns**
+`provider.kind` in the config selects the tracker — **`jira`** (default; absent ⇒ jira) or
+**`trello`**. The queue is a set of **goals** (Trello cards / Jira issues) arranged in **columns**
 (Trello lists / Jira statuses). A goal's **column is its status**; moving a goal between columns is the
 only state you keep — there is no queue file, so the run is crash-resumable (a goal in **In Progress**
 is an interrupted run to resume).
@@ -36,9 +36,10 @@ match a `To Do` alias). First match wins; a column matching nothing is treated a
 **Blocked** column → report rather than guess). Resolve these at the START of every iteration; never
 hardcode ids.
 
-**Provider adapter.** The detailed steps below use the **Trello** tool names as the reference. When
-`provider.kind` is `jira`, substitute the right-hand column throughout (card→issue, list→status,
-`move_card`→transition, `idShort`→issue key, `get_cards_by_list_id`→a JQL search):
+**Provider adapter.** The detailed steps below name the **Trello** tools as a concrete example (their
+names are well-defined); map each operation to your configured provider via this table. For the
+default **`jira`**, that means card→issue, list→status, `move_card`→transition, `idShort`→issue key,
+and `get_cards_by_list_id`→a JQL search:
 
 | Operation | Trello (`mcp__trello__*`) | Jira (your Jira MCP) |
 | --- | --- | --- |
