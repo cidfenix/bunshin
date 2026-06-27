@@ -12,17 +12,19 @@
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-%2Floop-ff7a18">
   <img alt="process-only" src="https://img.shields.io/badge/orchestrator-none%20(process--only)-1b1226">
   <img alt="npm dependencies" src="https://img.shields.io/badge/npm%20deps-0-2ea043">
-  <img alt="requires" src="https://img.shields.io/badge/requires-Claude%20Code%20%2B%20Trello%20%26%20Playwright%20MCP-ff7a18">
+  <img alt="trackers" src="https://img.shields.io/badge/trackers-Trello%20%7C%20Jira-ff7a18">
+  <img alt="requires" src="https://img.shields.io/badge/requires-Claude%20Code%20%2B%20Trello%2FJira%20%2B%20Playwright%20MCP-1b1226">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
 > 🍥 **In the anime, a ninja forms a hand-seal and *poof* — an army of shadow clones peels off to do
 > the work while the original rests.** That's exactly this tool. Bunshin drops clone-agents
 > (implement · verify · review) that go off and finish your goals on their own — code → three gates →
-> auto-merge — with **no human in the review loop**. You stack cards on a Trello board; the clones
-> drain it.
+> auto-merge — with **no human in the review loop**. You stack goals on a **Trello board or Jira
+> project**; the clones drain it.
 
-Autonomous **Trello-driven goal loop for Claude Code**. It is **process-only**: there is no
+Autonomous **goal loop for Claude Code**, driven by your **Trello board or Jira project**. It is
+**process-only**: there is no
 orchestrator daemon. The package ships the markdown pipeline (a driver procedure + three agent briefs)
 and a thin CLI that drops a single per-repo config file into any repo and launches the Claude Code
 `/loop` that follows it.
@@ -36,12 +38,12 @@ and a thin CLI that drops a single per-repo config file into any repo and launch
 ## Requirements
 
 - [Claude Code](https://docs.claude.com/claude-code) installed, with `claude` on your `PATH`.
-- The **Trello MCP server** configured for the target project (the driver moves cards between lists
-  through `mcp__trello__*` tools).
+- A **task-tracker MCP server** for your `provider.kind`: the **Trello MCP** (`mcp__trello__*`) or a
+  **Jira MCP** (e.g. the Atlassian MCP). The driver moves goals between columns through it.
 - The **Playwright MCP server** configured (Gate 2 smoke-tests the change in a browser).
 - Node.js ≥ 18 — only to run the CLI itself, which has **zero npm dependencies** (pure Node
   built-ins, so `npx` pulls in nothing). Note this is separate from the runtime prerequisites above:
-  the **pipeline needs Claude Code + the Trello & Playwright MCP servers** to actually do its work.
+  the **pipeline needs Claude Code + a Trello *or* Jira MCP + the Playwright MCP** to do its work.
 
 > The CLI can scaffold files and launch `claude`, but it **cannot** install/configure the MCP servers
 > for you — that's a one-time Claude Code setup in the target project.
@@ -102,7 +104,7 @@ current tree) or if there's no `bunshin.config.json` yet.
 ## How a goal flows
 
 1. The driver takes the first **Pending** card, moves it to **In Progress**, and cuts an isolated
-   worktree off the base branch (`N` = the card's Trello `idShort`).
+   worktree off the base branch (`N` = the goal's id — Trello card `idShort` or Jira issue key).
 2. **Gate 1 (deterministic):** an implement agent codes the goal TDD-style; the driver runs your
    `install` then `gateChecks` (typecheck/build/test).
 3. **Gate 2 (behavioral):** a verify agent boots your dev server, exercises the feature with

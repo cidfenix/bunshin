@@ -6,8 +6,13 @@
     "name": "{{PROJECT_NAME}}"
   },
 
+  "provider": {
+    "$comment": "Which task tracker backs the queue: 'trello' (default) or 'jira'. Selects which MCP server the driver drives and whether columns come from board.lists (Trello) or jira.statuses (Jira). Absent ⇒ 'trello' (back-compat). Configure the matching block below; the other can be left as-is or deleted.",
+    "kind": "trello"
+  },
+
   "board": {
-    "$comment": "The Trello board that IS the queue (accessed via the mcp__trello__* tools). Status is encoded by which list a card lives in. ALWAYS resolve the four list ids by NAME at runtime (get_lists with boardId) — never hardcode list ids, they change if the board is recreated. Call set_active_board with boardId once at startup so later calls default to it.",
+    "$comment": "TRELLO provider (used when provider.kind = 'trello'). The Trello board that IS the queue (accessed via the mcp__trello__* tools). Status is encoded by which list a card lives in. ALWAYS resolve list ids by NAME at runtime (get_lists with boardId) — never hardcode list ids, they change if the board is recreated. Call set_active_board with boardId once at startup so later calls default to it.",
     "boardId": "{{BOARD_ID}}",
     "boardShortLink": "{{BOARD_SHORTLINK}}",
     "boardName": "{{BOARD_NAME}}",
@@ -18,6 +23,22 @@
       "blocked": ["Blocked", "Parked", "On Hold"],
       "done": ["Done", "Complete", "Merged"],
       "inReview": ["In Review", "Review", "Reviewing"]
+    }
+  },
+
+  "jira": {
+    "$comment": "JIRA provider (used when provider.kind = 'jira'). Access is via a Jira MCP server (e.g. the Atlassian MCP). Goals are issues; N = the issue key (e.g. PROJ-123). 'Moving' a goal to a column is a workflow TRANSITION, so the target status must be a legal transition from the current one. You can delete this block when using Trello.",
+    "baseUrl": "https://your-org.atlassian.net",
+    "projectKey": "PROJ",
+    "jql": "",
+    "jqlNote": "Optional extra JQL to scope the queue (e.g. \"labels = bunshin\"), ANDed with the project + status filters. Empty = the whole project.",
+    "statuses": {
+      "$comment": "Jira status NAMES per logical column — one name OR an array of aliases, matched case-insensitively and ignoring spaces/hyphens/underscores (exactly like board.lists). 'inReview' is only used when merge.mode is 'pr'.",
+      "pending": ["To Do", "Selected for Development", "Backlog"],
+      "inProgress": ["In Progress"],
+      "blocked": ["Blocked"],
+      "done": ["Done"],
+      "inReview": ["In Review"]
     }
   },
 

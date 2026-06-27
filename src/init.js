@@ -56,12 +56,12 @@ function printNextSteps(targetRoot) {
 
   console.log('\n✅ Bunshin ready.\n');
   console.log('Next steps:');
-  console.log(`  1. Edit ${CONFIG_FILENAME} — fill in the Trello board id and the project's`);
-  console.log('     install / gate / dev-server commands.');
-  console.log('  2. Create a Trello board with four columns (defaults: Pending, In Progress, Blocked,');
-  console.log('     Done — or your own names like To Do / Doing / …, listed under board.lists). For PR');
-  console.log('     mode (merge.mode="pr"), also add an "In Review" column + set up gh / a GitHub MCP.');
-  console.log(`  3. Ensure the Trello + Playwright MCP servers are configured for this project${hasMcp ? '' : ' (no .mcp.json / .claude/settings.json found yet)'}.`);
+  console.log(`  1. Edit ${CONFIG_FILENAME} — set provider.kind (trello | jira), fill in the board id`);
+  console.log('     (Trello) or baseUrl/projectKey (Jira), and your install / gate / dev-server commands.');
+  console.log('  2. Create the queue with four columns (defaults: Pending, In Progress, Blocked, Done —');
+  console.log('     or your own names under board.lists / jira.statuses). For PR mode (merge.mode="pr"),');
+  console.log('     also add an "In Review" column + set up gh / a GitHub MCP.');
+  console.log(`  3. Ensure your tracker MCP (Trello or Jira) + the Playwright MCP are configured${hasMcp ? '' : ' (no .mcp.json / .claude/settings.json found yet)'}.`);
   console.log('  4. Make sure CLAUDE.md describes the project (the agents read it for context).');
   console.log('  5. Commit bunshin.config.json, then launch:  npx bunshin run');
   console.log('');

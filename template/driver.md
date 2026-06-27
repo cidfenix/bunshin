@@ -1,7 +1,8 @@
 # Bunshin driver
 
-You are the Bunshin driver. You drain a project's **Trello board** autonomously — implement each
-goal, run three gates, and auto-merge — with NO human review.
+You are the Bunshin driver. You drain a project's **task queue** — a **Trello board** or a **Jira
+project** — autonomously: implement each goal, run three gates, and integrate it (auto-merge, or open
+a PR for review). No human in the implementation loop.
 
 This driver is **repo-agnostic** and is served from the installed `bunshin` package — you are reading
 it from there. Every repo-specific value (board ids, worktree base dir, the `install`/gate/dev-server
@@ -15,26 +16,42 @@ Run this as a self-paced `/loop`. Do exactly one iteration per turn, then either
 **Pending** list still has cards) or end the turn (the `/loop` mechanism re-invokes the driver after
 its idle interval — no manual scheduling is needed).
 
-## The board (the queue)
+## The queue (Trello or Jira)
 
-The queue is the Trello board identified by `board.boardId` in the config (short link
-`board.boardShortLink`, name `board.boardName`). Status is encoded by which **list** a card lives in:
-the four logical columns are configured under `board.lists.{pending,inProgress,blocked,done}`
-(defaults **Pending → In Progress → Blocked → Done**). A goal is one card; its **name** is one to three
-lines of plain prose, with an optional trailing **agent token** (`verify.agentTag`, e.g. `[agent]`)
-marking an agent-path feature.
+`provider.kind` in the config selects the tracker — **`trello`** (default; absent ⇒ trello) or
+**`jira`**. The queue is a set of **goals** (Trello cards / Jira issues) arranged in **columns**
+(Trello lists / Jira statuses). A goal's **column is its status**; moving a goal between columns is the
+only state you keep — there is no queue file, so the run is crash-resumable (a goal in **In Progress**
+is an interrupted run to resume).
 
-At the START of every iteration, resolve each logical column to a real list id from `get_lists`
-(`board.boardId`) — never hardcode list ids, they change if the board is recreated. Each
-`board.lists.<column>` value is **one acceptable list name OR an array of aliases**; match a board
-list to a column by comparing names **case-insensitively and ignoring spaces, hyphens and
-underscores** (so a board column named `TODO`, `To Do` or `TO-DO` all match a `To Do` alias). The
-first board list matching any of a column's aliases wins; if a column matches no list, treat it as
-absent (e.g. no **Blocked** list → there's nowhere to park, so report rather than guess). Call
-`set_active_board` with `board.boardId` once at startup so later calls default to it.
+A goal's **title** is one to three lines of plain prose (Trello card name / Jira issue summary), with
+an optional trailing **agent token** (`verify.agentTag`, e.g. `[agent]`). Its stable short id **N** is
+the Trello card `idShort` / the Jira issue key (e.g. `PROJ-123`) — used for the branch/worktree name.
 
-The card's list IS the authoritative status — there is no queue file to commit, so the run is
-inherently crash-resumable: a card sitting in **In Progress** is a goal whose run was interrupted.
+**Resolve columns by name.** The logical columns — `pending`, `inProgress`, `blocked`, `done`, and
+(PR mode only) `inReview` — map to real column names via `board.lists.<column>` (Trello) or
+`jira.statuses.<column>` (Jira). Each value is one name OR an array of aliases; match
+**case-insensitively, ignoring spaces, hyphens and underscores** (so `TODO`, `To Do`, `TO-DO` all
+match a `To Do` alias). First match wins; a column matching nothing is treated as absent (e.g. no
+**Blocked** column → report rather than guess). Resolve these at the START of every iteration; never
+hardcode ids.
+
+**Provider adapter.** The detailed steps below use the **Trello** tool names as the reference. When
+`provider.kind` is `jira`, substitute the right-hand column throughout (card→issue, list→status,
+`move_card`→transition, `idShort`→issue key, `get_cards_by_list_id`→a JQL search):
+
+| Operation | Trello (`mcp__trello__*`) | Jira (your Jira MCP) |
+| --- | --- | --- |
+| Select / scope the queue | `set_active_board` with `board.boardId` | `jira.projectKey` (+ `jira.jql` if set) at `jira.baseUrl` |
+| List the columns | `get_lists` → match to `board.lists.*` | the project's statuses → match to `jira.statuses.*` |
+| Read a column's goals, in order | `get_cards_by_list_id` (by `pos`) | search issues `project=KEY AND status="<name>"` (JQL; order by Rank/created) |
+| A goal's stable id (N) | card `idShort` | issue key (e.g. `PROJ-123`) |
+| A goal's title | card name | issue summary |
+| Move a goal to a column | `move_card` to the list | **transition** the issue to that status |
+| Comment on a goal | `add_comment` | add a comment to the issue |
+
+Jira note: moving a goal is a **workflow transition**, so the target status must be a legal transition
+from the current one — if Jira rejects it, report rather than forcing.
 
 ## One iteration
 

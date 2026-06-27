@@ -2,9 +2,10 @@
 
 > 影分身の術 — *Kage Bunshin no Jutsu*. Shadow clones that drain your backlog.
 
-Bunshin is a **standalone, zero-dependency CLI** that runs an **autonomous Trello-driven goal loop for
-Claude Code**: you stack lightweight goal cards on a Trello board, and Bunshin implements each one
-fully autonomously — code → three gates → auto-merge — with **no human in the review loop**. It is
+Bunshin is a **standalone, zero-dependency CLI** that runs an **autonomous goal loop for Claude Code**,
+driven by your **Trello board or Jira project**: you stack lightweight goals (cards / issues), and
+Bunshin implements each one fully autonomously — code → three gates → auto-merge — with **no human in
+the review loop**. It is
 **process-only**: there is no orchestrator daemon, just a markdown pipeline that a Claude Code `/loop`
 session follows, plus a thin CLI.
 
@@ -39,19 +40,23 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 2. **Zero runtime npm dependencies.** `src/` is plain CommonJS using only Node built-ins (`fs`,
    `path`, `child_process`). No build step — the CLI runs directly from source. Keep it this way:
    `npx github:cidfenix/bunshin` must stay instant with no install tree. This is *separate* from the
-   pipeline's **runtime prerequisites**, which are real: Claude Code + the **Trello MCP** + the
-   **Playwright MCP** (the badge says "npm deps: 0", not "needs nothing").
+   pipeline's **runtime prerequisites**, which are real: Claude Code + a tracker MCP (**Trello** or
+   **Jira**, per `provider.kind`) + the **Playwright MCP** (the badge says "npm deps: 0", not "needs
+   nothing").
 
 3. **GitHub distribution, not unscoped npm.** The npm name `bunshin` is already taken, so the tool is
    run from the repo: `npx github:cidfenix/bunshin` / `npm i -g github:cidfenix/bunshin`. The package
    `name` stays `bunshin` (the bin name). If we ever publish, it would be scoped `@cidfenix/bunshin`.
    The GitHub repo must be **public** for `npx github:` to work without auth.
 
-4. **The board IS the queue.** A goal is one Trello card; status is encoded by which list it's in
+4. **The tracker IS the queue.** A goal is one card/issue; status is encoded by which column it's in
    (Pending → In Progress → Blocked → Done). No queue file — the run is crash-resumable from the
-   board. Execution is **serial** and parks on the **first** gate failure (no auto-repair/retry).
-   List names are matched tolerantly (aliases + case/space/hyphen-insensitive), so `TODO`/`To Do`
-   both resolve.
+   tracker. Execution is **serial** and parks on the **first** gate failure (no auto-repair/retry).
+   The tracker is pluggable via `provider.kind` (**`trello`** default, or **`jira`**): a
+   provider-adapter table in `template/driver.md` maps each queue op (list columns, read a column,
+   move a goal, comment) to Trello (`mcp__trello__*`) vs a Jira MCP (transitions/JQL); columns come
+   from `board.lists` (Trello) or `jira.statuses` (Jira). Column names are matched tolerantly (aliases
+   + case/space/hyphen-insensitive), so `TODO`/`To Do` both resolve.
 
 5. **Integration is configurable** (`merge.mode`). `auto` (default) = local fast-forward merge to
    `baseBranch`, card → Done — no remote/GitHub needed. `pr` = push the branch, open a GitHub PR,
