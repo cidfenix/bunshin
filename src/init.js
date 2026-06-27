@@ -64,7 +64,7 @@ function printNextSteps(targetRoot) {
   console.log('  5. Commit bunshin.config.json, then launch:  npx bunshin run');
   console.log('');
   console.log('The driver + agent briefs are served from the bunshin package — nothing else is');
-  console.log('added to your repo. Update the pipeline with:  npm i -g bunshin@latest');
+  console.log('added to your repo. Update the pipeline with:  npm i -g github:cidfenix/bunshin');
   console.log('');
 }
 

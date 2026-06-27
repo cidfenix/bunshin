@@ -21,14 +21,20 @@ scaffolds them into any repo and launches the Claude Code `/loop` that follows t
 
 ## Usage
 
-Drop one config file into the repo you want to drain, then launch the loop:
+Install the CLI from GitHub (the npm name `bunshin` is taken, so it's distributed straight from the
+repo), then drop one config file into the repo you want to drain and launch the loop:
 
 ```bash
-# from the root of your target repo
-npx bunshin init
+# one-time: install the `bunshin` command from GitHub
+npm i -g github:cidfenix/bunshin
+
+# then, from the root of your target repo:
+bunshin init
 #   …edit bunshin.config.json (board id + your build commands)…  then commit it
-npx bunshin run
+bunshin run
 ```
+
+Or run it without installing: `npx github:cidfenix/bunshin init` / `… run`.
 
 ### `init` — write the config
 
@@ -51,8 +57,8 @@ npx bunshin init --force     # overwrite an existing bunshin.config.json
 
 `bunshin.config.json` is the only repo-specific thing — board ids, the worktree base dir, your
 install/gate/dev-server commands, and the benign-console-error allowlist. The driver and briefs read
-every value from it. **Update the pipeline** for all your repos at once with `npm i -g bunshin@latest`
-— no per-repo changes.
+every value from it. **Update the pipeline** for all your repos at once with
+`npm i -g github:cidfenix/bunshin` — no per-repo changes.
 
 ### `run` — launch the loop
 
