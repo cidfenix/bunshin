@@ -1,12 +1,36 @@
-# bunshin
+<p align="center">
+  <img src="assets/bunshin-banner.svg" alt="Bunshin — Kage Bunshin no Jutsu" width="100%">
+</p>
 
-Autonomous **Trello-driven goal loop for Claude Code**. Drains a board of lightweight, human-authored
-goals by implementing each one fully autonomously — code → three gates → auto-merge — with **no human
-in the review loop**.
+<h1 align="center">影分身 &nbsp;Bunshin</h1>
 
-It is **process-only**: there is no orchestrator daemon. The package ships the markdown pipeline (a
-driver procedure + three agent briefs) plus a single per-repo config file, and a thin CLI that
-scaffolds them into any repo and launches the Claude Code `/loop` that follows them.
+<p align="center">
+  <em>Kage Bunshin no Jutsu — the Shadow Clone Technique, for your backlog.</em>
+</p>
+
+<p align="center">
+  <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-%2Floop-ff7a18">
+  <img alt="process-only" src="https://img.shields.io/badge/orchestrator-none%20(process--only)-1b1226">
+  <img alt="dependencies" src="https://img.shields.io/badge/dependencies-zero-2ea043">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
+</p>
+
+> 🍥 **In the anime, a ninja forms a hand-seal and *poof* — an army of shadow clones peels off to do
+> the work while the original rests.** That's exactly this tool. Bunshin drops clone-agents
+> (implement · verify · review) that go off and finish your goals on their own — code → three gates →
+> auto-merge — with **no human in the review loop**. You stack cards on a Trello board; the clones
+> drain it.
+
+Autonomous **Trello-driven goal loop for Claude Code**. It is **process-only**: there is no
+orchestrator daemon. The package ships the markdown pipeline (a driver procedure + three agent briefs)
+and a thin CLI that drops a single per-repo config file into any repo and launches the Claude Code
+`/loop` that follows it.
+
+### Why "Bunshin"?
+
+> **分身 (bunshin)** = "a divided body; a clone." **影分身 (kage bunshin)** = "shadow clone."
+> One source, many copies doing the work in parallel — the loop spawns fresh agent "clones" per goal,
+> and the multi-agent future is literally *Tajū* Kage Bunshin: many at once. 🥷
 
 ## Requirements
 

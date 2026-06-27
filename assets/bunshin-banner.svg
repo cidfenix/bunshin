@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="1200" height="360" role="img" aria-label="Bunshin — Kage Bunshin no Jutsu (Shadow Clone Technique)">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0910"/>
+      <stop offset="1" stop-color="#1b1226"/>
+    </linearGradient>
+    <linearGradient id="ember" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff6a00"/>
+      <stop offset="0.6" stop-color="#ff8c1a"/>
+      <stop offset="1" stop-color="#ffc36b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.28" cy="0.5" r="0.6">
+      <stop offset="0" stop-color="#ff7a18" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ff7a18" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="360" fill="url(#bg)"/>
+  <rect width="1200" height="360" fill="url(#glow)"/>
+
+  <!-- huge faint kanji watermark: 影分身 (Kage Bun Shin) -->
+  <text x="1185" y="278" text-anchor="end" font-family="'Yu Gothic','Hiragino Sans','Noto Sans CJK JP','Microsoft YaHei',sans-serif"
+        font-size="250" font-weight="700" fill="#ff7a18" opacity="0.07">影分身</text>
+
+  <!-- shuriken (original 4-point throwing star) -->
+  <g transform="translate(1040 92) rotate(15)">
+    <polygon points="0,-58 13,-13 58,0 13,13 0,58 -13,13 -58,0 -13,-13" fill="url(#ember)"/>
+    <circle cx="0" cy="0" r="9" fill="#0b0910"/>
+  </g>
+
+  <!-- the wordmark, literally cloned into fading shadow copies -->
+  <g font-family="'Trebuchet MS','Segoe UI',Verdana,sans-serif" font-weight="800" font-size="124" letter-spacing="2">
+    <text x="78" y="186" fill="#ff7a18" opacity="0.10" transform="translate(54 40)">BUNSHIN</text>
+    <text x="78" y="186" fill="#ff7a18" opacity="0.22" transform="translate(27 20)">BUNSHIN</text>
+    <text x="78" y="186" fill="url(#ember)">BUNSHIN</text>
+  </g>
+
+  <!-- accent underline -->
+  <rect x="82" y="208" width="430" height="4" rx="2" fill="url(#ember)" opacity="0.85"/>
+
+  <!-- romaji / kanji label -->
+  <text x="84" y="258" font-family="'Segoe UI',Verdana,sans-serif" font-size="30" font-weight="600" letter-spacing="4" fill="#e7b58a">
+    影分身の術 · Kage Bunshin no Jutsu
+  </text>
+
+  <!-- tagline -->
+  <text x="84" y="306" font-family="'Segoe UI',Verdana,sans-serif" font-size="26" fill="#aab2c0">
+    Shadow clones that drain your backlog — autonomous agents · three gates · auto-merge.
+  </text>
+</svg>
