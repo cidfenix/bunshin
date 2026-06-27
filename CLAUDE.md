@@ -119,7 +119,7 @@ in `template/driver.md` — read it before changing pipeline behaviour.
 ## Distribution & repo
 
 - Repo: `github.com/cidfenix/bunshin` (must be **public** for `npx github:` to resolve).
-- Default branch: `main`.
+- Default branch: `master`.
 - No secrets in the repo or its history (audited) — the package ships only placeholder config; all
   real values (board ids, commands, MCP credentials) live in the *consuming* repo's config / the
   user's Claude Code setup, never here.
