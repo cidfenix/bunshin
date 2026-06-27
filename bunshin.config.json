@@ -1,0 +1,88 @@
+{
+  "$comment": "Bunshin per-repository configuration. The driver (driver.md) and the three agent briefs (agents/{implement,verify,review}.md) read EVERY repo-specific value from this file; the markdown procedure itself stays generic. EDIT THIS FILE for your project: fill in the Trello board id and your project's install/gate/dev-server commands and the benign-console-error allowlist. The pnpm commands below are EXAMPLES — replace them with your toolchain (npm/yarn/cargo/etc). See the bunshin package README for a field-by-field guide. This is the ONLY file bunshin adds to your repo — the driver + agent briefs are served from the installed package.",
+
+  "project": {
+    "$comment": "Human-readable project name, used in launcher prose and reports.",
+    "name": "bunshin"
+  },
+
+  "provider": {
+    "$comment": "Which task tracker backs the queue: 'jira' (default) or 'trello'. Selects which MCP server the driver drives and whether columns come from jira.statuses (Jira) or board.lists (Trello). Absent ⇒ 'jira'. Configure the matching block below; the other can be left as-is or deleted.",
+    "kind": "jira"
+  },
+
+  "board": {
+    "$comment": "TRELLO provider (used when provider.kind = 'trello'). The Trello board that IS the queue (accessed via the mcp__trello__* tools). Status is encoded by which list a card lives in. ALWAYS resolve list ids by NAME at runtime (get_lists with boardId) — never hardcode list ids, they change if the board is recreated. Call set_active_board with boardId once at startup so later calls default to it.",
+    "boardId": "",
+    "boardShortLink": "",
+    "boardName": "bunshin",
+    "lists": {
+      "$comment": "Each logical column maps to one or more acceptable list NAMES (aliases). A value may be a single string OR an array of strings. Matching is case-insensitive and ignores spaces, hyphens and underscores, so a board column named 'TODO', 'To Do' or 'TO-DO' all match the 'To Do' alias. The first board list matching any alias wins. Add or replace these with whatever your board actually uses. 'inReview' is ONLY used when merge.mode is 'pr' (cards land there awaiting review); omit it for 'auto' mode.",
+      "pending": ["Pending", "To Do", "Backlog"],
+      "inProgress": ["In Progress", "Doing", "WIP"],
+      "blocked": ["Blocked", "Parked", "On Hold"],
+      "done": ["Done", "Complete", "Merged"],
+      "inReview": ["In Review", "Review", "Reviewing"]
+    }
+  },
+
+  "jira": {
+    "$comment": "JIRA provider (used when provider.kind = 'jira'). Access is via a Jira MCP server (e.g. the Atlassian MCP). Goals are issues; N = the issue key (e.g. PROJ-123). 'Moving' a goal to a column is a workflow TRANSITION, so the target status must be a legal transition from the current one. You can delete this block when using Trello.",
+    "baseUrl": "https://cidfenix.atlassian.net",
+    "projectKey": "BUN",
+    "jql": "",
+    "jqlNote": "Optional extra JQL to scope the queue (e.g. \"labels = bunshin\"), ANDed with the project + status filters. Empty = the whole project.",
+    "statuses": {
+      "$comment": "Jira status NAMES per logical column — one name OR an array of aliases, matched case-insensitively and ignoring spaces/hyphens/underscores (exactly like board.lists). 'inReview' is only used when merge.mode is 'pr'.",
+      "pending": ["To Do", "Selected for Development", "Backlog"],
+      "inProgress": ["In Progress"],
+      "blocked": ["Blocked"],
+      "done": ["Done"],
+      "inReview": ["In Review"]
+    }
+  },
+
+  "git": {
+    "$comment": "Worktree + branch conventions. The driver creates one isolated worktree per goal at <worktreeBaseDir>/<N>-<slug> on branch <branchPrefix><N>-<slug> cut from <baseBranch>, where N = the card's Trello idShort and slug = kebab-cased card name (~5 words).",
+    "baseBranch": "master",
+    "branchPrefix": "goal/",
+    "worktreeBaseDir": "../bunshin-bunshin"
+  },
+
+  "merge": {
+    "$comment": "How a goal that passes all three gates is integrated. 'auto' (default) = local fast-forward merge into baseBranch — no remote or GitHub needed. 'pr' = push the branch, open a GitHub Pull Request, move the card to the board.lists.inReview column, and let autoMerge below decide when it merges (so humans can review first). PR mode needs a git remote AND GitHub access: an authenticated `gh` CLI or a GitHub MCP server.",
+    "mode": "auto",
+    "remote": "origin",
+    "prMethod": "squash",
+    "autoMerge": {
+      "$comment": "When mode='pr', an open PR auto-merges once ALL the gates you set here pass. Disable a gate with its neutral value: approvals 0, label \"\". With BOTH disabled (approvals 0 AND label \"\"), Bunshin opens the PR but NEVER auto-merges — a human merges on GitHub and the reaper just moves the card to Done once it sees the merge.",
+      "approvals": 1,
+      "label": "",
+      "requireChecksGreen": true
+    }
+  },
+
+  "artifactsDir": ".bunshin/artifacts",
+
+  "commands": {
+    "$comment": "Per-project shell commands the gates run. REPLACE these for your toolchain. `gateChecks` runs in Gate 1 and again after the merge rebase. `devServer`/`agentStart` are used by Gate 2 (behavioral); if your project has no web UI to smoke-test, adapt the verify brief accordingly. For pnpm keep the no-build-scripts flag — see installNote.",
+    "install": "",
+    "installNote": "Empty: this repo has ZERO runtime npm dependencies and no build step, so there is nothing to install (running `npm install` would only risk generating a stray package-lock.json). For a project WITH deps, put your install command here; for pnpm keep --frozen-lockfile --ignore-scripts.",
+    "gateChecks": "node -e \"require('./src/init');require('./src/run');require('./src/setup');require('./src/util')\" && node bin/bunshin.js --help && node bin/bunshin.js --version",
+    "devServer": "",
+    "agentStart": ""
+  },
+
+  "verify": {
+    "$comment": "Gate 2 (Playwright smoke + reachability) knobs.",
+    "agentTag": "[agent]",
+    "agentTagNote": "A trailing token in a card name marking a feature that needs an extra background process (e.g. a local agent) booted for Gate 2 via commands.agentStart. Leave commands.agentStart empty and ignore this if your project has no such path.",
+    "benignConsoleErrors": [],
+    "benignConsoleErrorsNote": "Substrings of EXPECTED offline console noise (endpoints not running during the smoke test) that Gate 2 must IGNORE. Only fail on NEW errors introduced by the change. Add your project's expected offline endpoints here (e.g. an API or agent localhost URL)."
+  },
+
+  "neverCommit": {
+    "$comment": "Files the implement/verify agents must NEVER stage (install-time churn), and Gate 3 must BLOCK if they appear in the diff — unless changing dependencies is the literal point of the goal. Adjust to your package manager's lockfile.",
+    "paths": ["package-lock.json"]
+  }
+}
