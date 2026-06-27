@@ -98,4 +98,85 @@ test('empty home => empty repos and zeroed totals, no throw', () => {
   assert.strictEqual(payload.totals.pending, 0);
 });
 
+// --- sceneFor(repo): the pure state -> nerd-view scene mapper ---
+
+// Build a /status-style repo entry as buildStatusPayload would produce.
+function repoEntry(liveness, heartbeat) {
+  return { repoId: 'abc', projectName: 'P', liveness, heartbeat: heartbeat || null };
+}
+
+test('sceneFor: stopped => loop gone, no clone', () => {
+  const s = watch.sceneFor(repoEntry('stopped', { phase: 'gate2' }));
+  assert.strictEqual(s.loopPose, 'gone');
+  assert.strictEqual(s.goalActive, false);
+  assert.strictEqual(s.station, -1);
+  assert.strictEqual(s.blocked, false);
+});
+
+test('sceneFor: stale overrides an active phase => sleep, no clone', () => {
+  const s = watch.sceneFor(repoEntry('stale', { phase: 'gate3' }));
+  assert.strictEqual(s.loopPose, 'sleep');
+  assert.strictEqual(s.goalActive, false);
+  assert.strictEqual(s.station, -1);
+});
+
+test('sceneFor: running idle => loop checking board, no clone', () => {
+  const s = watch.sceneFor(repoEntry('running', { phase: 'idle' }));
+  assert.strictEqual(s.loopPose, 'check');
+  assert.strictEqual(s.goalActive, false);
+  assert.strictEqual(s.station, -1);
+});
+
+test('sceneFor: running with no heartbeat => loop checking board', () => {
+  const s = watch.sceneFor(repoEntry('running', null));
+  assert.strictEqual(s.loopPose, 'check');
+  assert.strictEqual(s.goalActive, false);
+  assert.strictEqual(s.station, -1);
+});
+
+test('sceneFor: running gate1..merge => clone at the matching station', () => {
+  const map = { gate1: 0, gate2: 1, gate3: 2, merge: 3 };
+  for (const phase of Object.keys(map)) {
+    const s = watch.sceneFor(repoEntry('running', { phase }));
+    assert.strictEqual(s.goalActive, true, phase);
+    assert.strictEqual(s.station, map[phase], phase);
+    assert.strictEqual(s.blocked, false, phase);
+  }
+});
+
+test('sceneFor: running blocked => clone present, blocked true, station >= 0', () => {
+  const s = watch.sceneFor(repoEntry('running', { phase: 'blocked' }));
+  assert.strictEqual(s.goalActive, true);
+  assert.strictEqual(s.blocked, true);
+  assert.ok(s.station >= 0);
+});
+
+test('sceneFor: surfaces card title and queue counts', () => {
+  const s = watch.sceneFor(repoEntry('running', {
+    phase: 'gate1',
+    card: { ref: 'BUN-42', title: 'Add CSV export' },
+    queue: { pending: 5, done: 18 },
+  }));
+  assert.ok(s.cardTitle.includes('Add CSV export'));
+  assert.strictEqual(s.pending, 5);
+  assert.strictEqual(s.done, 18);
+});
+
+test('sceneFor: tolerates missing card/queue without throwing', () => {
+  const s = watch.sceneFor(repoEntry('running', { phase: 'gate2' }));
+  assert.strictEqual(s.cardTitle, '');
+  assert.strictEqual(s.pending, 0);
+  assert.strictEqual(s.done, 0);
+});
+
+// --- renderPage(): both views + toggle + inlined single-source mapper ---
+
+test('renderPage: serves both view roots, the toggle, and the inlined sceneFor source', () => {
+  const html = watch.renderPage();
+  assert.ok(html.includes('id="view-pro"'), 'has pro view root');
+  assert.ok(html.includes('id="view-nerd"'), 'has nerd view root');
+  assert.ok(html.includes('bunshin.watch.view'), 'persists view choice');
+  assert.ok(html.includes('function sceneFor'), 'inlines sceneFor source');
+});
+
 console.log(`\nwatch.test.js: ${passed} passed`);
