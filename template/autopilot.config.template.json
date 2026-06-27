@@ -1,0 +1,53 @@
+{
+  "$comment": "Autopilot per-repository configuration. The driver (driver.md) and the three agent briefs (agents/{implement,verify,review}.md) read EVERY repo-specific value from this file; the markdown procedure itself stays generic. EDIT THIS FILE for your project: fill in the Trello board id and your project's install/gate/dev-server commands and the benign-console-error allowlist. The pnpm commands below are EXAMPLES — replace them with your toolchain (npm/yarn/cargo/etc). See README.md for a field-by-field guide.",
+
+  "project": {
+    "$comment": "Human-readable project name, used in launcher prose and reports.",
+    "name": "{{PROJECT_NAME}}"
+  },
+
+  "board": {
+    "$comment": "The Trello board that IS the queue (accessed via the mcp__trello__* tools). Status is encoded by which list a card lives in. ALWAYS resolve the four list ids by NAME at runtime (get_lists with boardId) — never hardcode list ids, they change if the board is recreated. Call set_active_board with boardId once at startup so later calls default to it.",
+    "boardId": "{{BOARD_ID}}",
+    "boardShortLink": "{{BOARD_SHORTLINK}}",
+    "boardName": "{{BOARD_NAME}}",
+    "lists": {
+      "$comment": "List NAMES to resolve to ids at runtime — Pending -> In Progress -> Blocked -> Done.",
+      "pending": "Pending",
+      "inProgress": "In Progress",
+      "blocked": "Blocked",
+      "done": "Done"
+    }
+  },
+
+  "git": {
+    "$comment": "Worktree + branch conventions. The driver creates one isolated worktree per goal at <worktreeBaseDir>/<N>-<slug> on branch <branchPrefix><N>-<slug> cut from <baseBranch>, where N = the card's Trello idShort and slug = kebab-cased card name (~5 words).",
+    "baseBranch": "{{BASE_BRANCH}}",
+    "branchPrefix": "goal/",
+    "worktreeBaseDir": "{{WORKTREE_BASE_DIR}}"
+  },
+
+  "artifactsDir": "docs/superpowers/autopilot/artifacts",
+
+  "commands": {
+    "$comment": "Per-project shell commands the gates run. REPLACE these for your toolchain. `gateChecks` runs in Gate 1 and again after the merge rebase. `devServer`/`agentStart` are used by Gate 2 (behavioral); if your project has no web UI to smoke-test, adapt the verify brief accordingly. For pnpm keep the no-build-scripts flag — see installNote.",
+    "install": "pnpm install --frozen-lockfile --ignore-scripts",
+    "installNote": "--ignore-scripts is REQUIRED for pnpm: a fresh worktree has no recorded build-script approval, so a plain `pnpm install` errors ERR_PNPM_IGNORED_BUILDS: esbuild (exit 1) and that failure then fires on EVERY later `pnpm <script>` (its deps-status check re-runs install), breaking build/test/dev. --ignore-scripts settles it cleanly with zero file churn. --frozen-lockfile additionally prevents lockfile churn. (Drop this note / flag if you don't use pnpm.)",
+    "gateChecks": "pnpm typecheck && pnpm build && pnpm test",
+    "devServer": "pnpm dev",
+    "agentStart": ""
+  },
+
+  "verify": {
+    "$comment": "Gate 2 (Playwright smoke + reachability) knobs.",
+    "agentTag": "[agent]",
+    "agentTagNote": "A trailing token in a card name marking a feature that needs an extra background process (e.g. a local agent) booted for Gate 2 via commands.agentStart. Leave commands.agentStart empty and ignore this if your project has no such path.",
+    "benignConsoleErrors": [],
+    "benignConsoleErrorsNote": "Substrings of EXPECTED offline console noise (endpoints not running during the smoke test) that Gate 2 must IGNORE. Only fail on NEW errors introduced by the change. Add your project's expected offline endpoints here (e.g. an API or agent localhost URL)."
+  },
+
+  "neverCommit": {
+    "$comment": "Files the implement/verify agents must NEVER stage (install-time churn), and Gate 3 must BLOCK if they appear in the diff — unless changing dependencies is the literal point of the goal. Adjust to your package manager's lockfile.",
+    "paths": ["pnpm-lock.yaml", "pnpm-workspace.yaml"]
+  }
+}
