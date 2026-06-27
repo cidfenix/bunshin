@@ -46,7 +46,42 @@ and a thin CLI that drops a single per-repo config file into any repo and launch
   the **pipeline needs Claude Code + a Trello *or* Jira MCP + the Playwright MCP** to do its work.
 
 > The `setup` command (below) can **install the MCP servers for you** — it runs `claude mcp add` with
-> your approval and your credentials. Configuring them by hand is also a one-time Claude Code step.
+> your approval and your credentials. Configuring them by hand is a one-time step too — see
+> [Setting up the MCP servers](#setting-up-the-mcp-servers) below.
+
+## Setting up the MCP servers
+
+`bunshin setup` can install these for you with your approval; to wire them by hand, these are one-time
+`claude mcp add` commands. You only need the **tracker MCP that matches your `provider.kind`** — Jira
+**or** Trello, not both — plus **Playwright**. Add `-s project` to any command to record it in the
+repo's `.mcp.json` (shared with your team via git); omit it to keep the server in your personal Claude
+config. Confirm they all connect with `claude mcp list` (or `/mcp` inside Claude Code) before `run`.
+
+**Playwright** — Gate 2's browser smoke test:
+
+```bash
+claude mcp add playwright -- npx @playwright/mcp@latest
+```
+
+**Jira** — the official **Atlassian Remote MCP** (OAuth, nothing to paste):
+
+```bash
+claude mcp add --transport http atlassian https://mcp.atlassian.com/v1/mcp
+```
+
+Then run `/mcp` in Claude Code and authenticate `atlassian` in the browser. (An older
+`--transport sse … /v1/sse` endpoint exists but is being retired — use the `/v1/mcp` HTTP endpoint
+above.)
+
+**Trello** — [`@delorenj/mcp-server-trello`](https://github.com/delorenj/mcp-server-trello); get a
+Trello API key + token from <https://trello.com/power-ups/admin>:
+
+```bash
+claude mcp add trello \
+  -e TRELLO_API_KEY=<your-key> \
+  -e TRELLO_TOKEN=<your-token> \
+  -- npx -y @delorenj/mcp-server-trello
+```
 
 ## Usage
 
