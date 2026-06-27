@@ -45,31 +45,39 @@ and a thin CLI that drops a single per-repo config file into any repo and launch
   built-ins, so `npx` pulls in nothing). Note this is separate from the runtime prerequisites above:
   the **pipeline needs Claude Code + a Trello *or* Jira MCP + the Playwright MCP** to do its work.
 
-> The CLI can scaffold files and launch `claude`, but it **cannot** install/configure the MCP servers
-> for you — that's a one-time Claude Code setup in the target project.
+> The `setup` command (below) can **install the MCP servers for you** — it runs `claude mcp add` with
+> your approval and your credentials. Configuring them by hand is also a one-time Claude Code step.
 
 ## Usage
 
-Install the CLI from GitHub (the npm name `bunshin` is taken, so it's distributed straight from the
-repo), then drop one config file into the repo you want to drain and launch the loop:
+The npm name `bunshin` is taken, so it's distributed straight from the repo — run it with `npx`
+(no install) or install the `bunshin` command globally.
+
+### `setup` — guided, interactive (recommended)
 
 ```bash
-# one-time: install the `bunshin` command from GitHub
-npm i -g github:cidfenix/bunshin
-
-# then, from the root of your target repo:
-bunshin init
-#   …edit bunshin.config.json (board id + your build commands)…  then commit it
-bunshin run
+# from the root of the repo you want to drain:
+npx github:cidfenix/bunshin setup
 ```
 
-Or run it without installing: `npx github:cidfenix/bunshin init` / `… run`.
+Opens a **Claude Code session** that walks you through it conversationally — picks your tracker
+(Jira/Trello), connection details, merge strategy, and toolchain commands, fills in
+`bunshin.config.json`, and then **checks and installs the required MCP servers** (Trello/Jira +
+Playwright) with your approval. When it's done, commit the config and run:
 
-### `init` — write the config
+```bash
+git add bunshin.config.json && git commit -m "add bunshin"
+npx github:cidfenix/bunshin run
+```
 
-Bunshin is **config-only**: the only file it adds to your repo is **`bunshin.config.json`** at the
-root. The driver + the three agent briefs live inside this package and are served from there at run
-time, so there's nothing generic to copy into (or duplicate across) your repos.
+Prefer a persistent command? `npm i -g github:cidfenix/bunshin`, then `bunshin setup` / `bunshin run`.
+
+### `init` — just write the config (no prompts)
+
+For scripted/CI setups. Bunshin is **config-only**: the only file it adds to your repo is
+**`bunshin.config.json`** at the root. The driver + the three agent briefs live inside this package and
+are served from there at run time, so there's nothing generic to copy into (or duplicate across) your
+repos.
 
 ```
 your-repo/
@@ -80,8 +88,8 @@ your-repo/
 Useful flags:
 
 ```bash
-npx bunshin init --name MyApp --base-branch main --board-id <trelloBoardId>
-npx bunshin init --force     # overwrite an existing bunshin.config.json
+npx github:cidfenix/bunshin init --name MyApp --base-branch main --board-id <trelloBoardId>
+npx github:cidfenix/bunshin init --force     # overwrite an existing bunshin.config.json
 ```
 
 `bunshin.config.json` is the only repo-specific thing — board ids, the worktree base dir, your
@@ -92,10 +100,10 @@ every value from it. **Update the pipeline** for all your repos at once with
 ### `run` — launch the loop
 
 ```bash
-npx bunshin run                 # self-paced /loop, drains all Pending goals (re-checks every 20m)
-npx bunshin run --once          # process exactly one goal, then stop
-npx bunshin run --interval 30m  # different re-check cadence
-npx bunshin run --unattended    # skip Claude Code permission prompts (hands-off — use with care)
+npx github:cidfenix/bunshin run                 # self-paced /loop, drains the queue (re-checks every 20m)
+npx github:cidfenix/bunshin run --once          # process exactly one goal, then stop
+npx github:cidfenix/bunshin run --interval 30m  # different re-check cadence
+npx github:cidfenix/bunshin run --unattended    # skip Claude Code permission prompts (hands-off — careful)
 ```
 
 `run` refuses to start if the working tree is dirty (it fast-forward-merges finished goals into the

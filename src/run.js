@@ -48,7 +48,8 @@ async function run(opts) {
   const configPath = path.join(root, CONFIG_FILENAME);
   if (!exists(configPath)) {
     throw new Error(
-      `No ${CONFIG_FILENAME} found at the repo root.\n` + `Run "npx bunshin init" first.`
+      `No ${CONFIG_FILENAME} found at the repo root.\n` +
+        `Run "npx github:cidfenix/bunshin setup" (guided) or "… init" first.`
     );
   }
 

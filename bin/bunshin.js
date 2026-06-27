@@ -2,25 +2,30 @@
 'use strict';
 
 // bunshin CLI entry point.
-//   bunshin init [options]   write a bunshin.config.json into the current repo
-//   bunshin run  [options]   launch the Claude Code /loop that drains the board
+//   bunshin setup [options]  guided, interactive setup (a Claude Code session)
+//   bunshin init  [options]  write a bunshin.config.json into the current repo (no prompts)
+//   bunshin run   [options]  launch the Claude Code /loop that drains the queue
 
 const { init } = require('../src/init');
+const { setup } = require('../src/setup');
 const { run } = require('../src/run');
 const { readVersion } = require('../src/util');
 
 function printHelp() {
-  console.log(`bunshin — autonomous Trello-driven goal loop for Claude Code
+  console.log(`bunshin — autonomous Jira/Trello goal loop for Claude Code
 
 Usage:
-  npx bunshin <command> [options]
+  npx github:cidfenix/bunshin <command> [options]
 
 Commands:
-  init      Write a bunshin.config.json into the current repo (the only per-repo file;
-            the driver + agent briefs are served from this package at run time).
-  run       Launch the self-paced Claude Code /loop that drains the board.
+  setup     Guided, interactive setup — opens a Claude Code session that walks you
+            through provider, merge strategy, and commands, then checks/installs the
+            required MCP servers. (Recommended first run.)
+  init      Just write a bunshin.config.json into the current repo (no prompts; the
+            driver + agent briefs are served from this package at run time).
+  run       Launch the self-paced Claude Code /loop that drains the queue.
 
-init options:
+setup / init options:
   --dir <path>          Target repo root (default: the current git repo / cwd).
   --name <name>         Project name written into the config.
   --board-id <id>       Trello board id.
@@ -79,6 +84,9 @@ async function main() {
   const opts = parseArgs(argv.slice(1));
 
   switch (command) {
+    case 'setup':
+      await setup(opts);
+      break;
     case 'init':
       await init(opts);
       break;

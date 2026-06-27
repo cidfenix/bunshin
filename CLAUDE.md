@@ -18,10 +18,12 @@ board — see "Two halves" below.)
 ## Two halves of this repo
 
 1. **The CLI** (`bin/`, `src/`) — what a maintainer installs (`npm i -g github:cidfenix/bunshin`). It
-   has two commands and does almost nothing on its own; it sets up a repo and launches Claude Code.
-2. **The pipeline** (`template/`) — generic markdown that the launched Claude Code `/loop` session
-   *reads and follows* to actually drain a board: a driver procedure + three agent briefs. This is
-   served **from the installed package** at run time, never copied into consuming repos.
+   has three commands (`setup` / `init` / `run`) and does almost nothing on its own; it writes the
+   config and launches Claude Code.
+2. **The pipeline** (`template/`) — generic markdown that a launched Claude Code session *reads and
+   follows*: `driver.md` (the autonomous `/loop` that drains the queue) + three agent briefs, plus
+   `setup.md` (an **interactive** guide the `setup` session follows to configure the repo). All served
+   **from the installed package** at run time, never copied into consuming repos.
 
 Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/reviewed → `template/`.
 
@@ -71,13 +73,15 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 
 | File | Role |
 | --- | --- |
-| `bin/bunshin.js` | CLI entry: arg parsing, `--help`/`--version`, dispatch to `init`/`run`. |
-| `src/init.js` | `init` — render `template/bunshin.config.template.json` (token substitution) → `bunshin.config.json` at the repo root. Writes nothing else. |
+| `bin/bunshin.js` | CLI entry: arg parsing, `--help`/`--version`, dispatch to `setup`/`init`/`run`. |
+| `src/init.js` | `init` — render `template/bunshin.config.template.json` (token substitution) → `bunshin.config.json` at the repo root. Exports `ensureConfig()` (write-if-missing), reused by `setup`. |
+| `src/setup.js` | `setup` — `ensureConfig()` then `spawn` Claude Code (a plain interactive session, no `/loop`) pointed at `template/setup.md`. `buildSetupPrompt()` is the unit-testable core. |
 | `src/run.js` | `run` — guards (git repo · config present · clean tree · `claude` on PATH), build the `/loop` prompt pointing at the package driver, `spawn` Claude Code. `buildPrompt()` is the unit-testable core. |
 | `src/util.js` | Helpers: `CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`. |
-| `template/driver.md` | The `/loop` driver procedure (the pipeline). |
+| `template/driver.md` | The autonomous `/loop` driver procedure (the pipeline). |
+| `template/setup.md` | The **interactive** setup guide the `setup` session follows (asks the user, fills the config, installs MCPs). |
 | `template/agents/{implement,verify,review}.md` | The three agent briefs the driver dispatches. |
-| `template/bunshin.config.template.json` | Placeholder config (`{{TOKENS}}` filled by `init`). |
+| `template/bunshin.config.template.json` | Placeholder config (`{{TOKENS}}` filled by `init`/`setup`). |
 | `assets/bunshin-banner.svg` | Original themed README banner (no copyrighted imagery). |
 
 ---

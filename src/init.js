@@ -27,25 +27,30 @@ function renderConfig(templatePath, opts, targetRoot) {
   return text;
 }
 
-// Config-only model: the only thing a consuming repo owns is bunshin.config.json at
-// its root. The driver + agent briefs are served from the installed package at run
-// time (see `bunshin run`), so there are no generic pipeline files to scaffold.
-async function init(opts) {
+// Ensure bunshin.config.json exists at the repo root (write the template if missing,
+// or when --force). Returns where it is and whether it was just created. Shared by
+// `init` and `setup` (the config-only model: this is the only file in the repo; the
+// driver + agent briefs are served from the installed package).
+function ensureConfig(opts = {}) {
   const targetRoot = resolveTargetRoot(opts);
-  const configDest = path.join(targetRoot, CONFIG_FILENAME);
+  const configPath = path.join(targetRoot, CONFIG_FILENAME);
 
   if (!exists(path.join(targetRoot, '.git'))) {
     console.warn(`Warning: ${targetRoot} does not look like a git repo root (no .git). Continuing anyway.`);
   }
 
-  if (exists(configDest) && !opts.force) {
-    console.log(`kept    ${CONFIG_FILENAME} (already present; pass --force to overwrite)`);
-  } else {
+  let wrote = false;
+  if (!exists(configPath) || opts.force) {
     const rendered = renderConfig(path.join(templateDir(), 'bunshin.config.template.json'), opts, targetRoot);
-    fs.writeFileSync(configDest, rendered);
-    console.log(`wrote   ${CONFIG_FILENAME}`);
+    fs.writeFileSync(configPath, rendered);
+    wrote = true;
   }
+  return { targetRoot, configPath, wrote };
+}
 
+async function init(opts) {
+  const { targetRoot, wrote } = ensureConfig(opts);
+  console.log(wrote ? `wrote   ${CONFIG_FILENAME}` : `kept    ${CONFIG_FILENAME} (already present; pass --force to overwrite)`);
   printNextSteps(targetRoot);
 }
 
@@ -55,7 +60,9 @@ function printNextSteps(targetRoot) {
     exists(path.join(targetRoot, '.claude', 'settings.json'));
 
   console.log('\n✅ Bunshin ready.\n');
-  console.log('Next steps:');
+  console.log('💡 Prefer a guided setup? Run  npx github:cidfenix/bunshin setup  — an interactive Claude');
+  console.log('   session walks you through provider, merge strategy, commands, and MCP install.\n');
+  console.log('Or configure it by hand:');
   console.log(`  1. Edit ${CONFIG_FILENAME} — set provider.kind (jira | trello; default jira), fill in`);
   console.log('     baseUrl/projectKey (Jira) or the board id (Trello), and your gate / dev-server commands.');
   console.log('  2. Create the queue with four columns (defaults: Pending, In Progress, Blocked, Done —');
@@ -63,11 +70,11 @@ function printNextSteps(targetRoot) {
   console.log('     also add an "In Review" column + set up gh / a GitHub MCP.');
   console.log(`  3. Ensure your tracker MCP (Trello or Jira) + the Playwright MCP are configured${hasMcp ? '' : ' (no .mcp.json / .claude/settings.json found yet)'}.`);
   console.log('  4. Make sure CLAUDE.md describes the project (the agents read it for context).');
-  console.log('  5. Commit bunshin.config.json, then launch:  npx bunshin run');
+  console.log('  5. Commit bunshin.config.json, then launch:  npx github:cidfenix/bunshin run');
   console.log('');
   console.log('The driver + agent briefs are served from the bunshin package — nothing else is');
   console.log('added to your repo. Update the pipeline with:  npm i -g github:cidfenix/bunshin');
   console.log('');
 }
 
-module.exports = { init };
+module.exports = { init, ensureConfig };
