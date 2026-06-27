@@ -58,7 +58,8 @@ function printNextSteps(targetRoot) {
   console.log('Next steps:');
   console.log(`  1. Edit ${CONFIG_FILENAME} — fill in the Trello board id and the project's`);
   console.log('     install / gate / dev-server commands.');
-  console.log('  2. Create a Trello board with lists: Pending, In Progress, Blocked, Done.');
+  console.log('  2. Create a Trello board with four columns (defaults: Pending, In Progress, Blocked,');
+  console.log('     Done — or use your own names like To Do / Doing / … and list them under board.lists).');
   console.log(`  3. Ensure the Trello + Playwright MCP servers are configured for this project${hasMcp ? '' : ' (no .mcp.json / .claude/settings.json found yet)'}.`);
   console.log('  4. Make sure CLAUDE.md describes the project (the agents read it for context).');
   console.log('  5. Commit bunshin.config.json, then launch:  npx bunshin run');

@@ -19,14 +19,19 @@ its idle interval — no manual scheduling is needed).
 
 The queue is the Trello board identified by `board.boardId` in the config (short link
 `board.boardShortLink`, name `board.boardName`). Status is encoded by which **list** a card lives in:
-the four list NAMES are `board.lists.{pending,inProgress,blocked,done}` (default **Pending → In
-Progress → Blocked → Done**). A goal is one card; its **name** is one to three lines of plain prose,
-with an optional trailing **agent token** (`verify.agentTag`, e.g. `[agent]`) marking an agent-path
-feature.
+the four logical columns are configured under `board.lists.{pending,inProgress,blocked,done}`
+(defaults **Pending → In Progress → Blocked → Done**). A goal is one card; its **name** is one to three
+lines of plain prose, with an optional trailing **agent token** (`verify.agentTag`, e.g. `[agent]`)
+marking an agent-path feature.
 
-At the START of every iteration, resolve the four list ids by name (`get_lists` with `board.boardId`)
-— do not hardcode list ids, they can change if the board is recreated. Call `set_active_board` with
-`board.boardId` once at startup so later calls default to it.
+At the START of every iteration, resolve each logical column to a real list id from `get_lists`
+(`board.boardId`) — never hardcode list ids, they change if the board is recreated. Each
+`board.lists.<column>` value is **one acceptable list name OR an array of aliases**; match a board
+list to a column by comparing names **case-insensitively and ignoring spaces, hyphens and
+underscores** (so a board column named `TODO`, `To Do` or `TO-DO` all match a `To Do` alias). The
+first board list matching any of a column's aliases wins; if a column matches no list, treat it as
+absent (e.g. no **Blocked** list → there's nowhere to park, so report rather than guess). Call
+`set_active_board` with `board.boardId` once at startup so later calls default to it.
 
 The card's list IS the authoritative status — there is no queue file to commit, so the run is
 inherently crash-resumable: a card sitting in **In Progress** is a goal whose run was interrupted.

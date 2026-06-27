@@ -12,11 +12,11 @@
     "boardShortLink": "{{BOARD_SHORTLINK}}",
     "boardName": "{{BOARD_NAME}}",
     "lists": {
-      "$comment": "List NAMES to resolve to ids at runtime — Pending -> In Progress -> Blocked -> Done.",
-      "pending": "Pending",
-      "inProgress": "In Progress",
-      "blocked": "Blocked",
-      "done": "Done"
+      "$comment": "Each logical column maps to one or more acceptable list NAMES (aliases). A value may be a single string OR an array of strings. Matching is case-insensitive and ignores spaces, hyphens and underscores, so a board column named 'TODO', 'To Do' or 'TO-DO' all match the 'To Do' alias. The first board list matching any alias wins. Add or replace these with whatever your board actually uses.",
+      "pending": ["Pending", "To Do", "Backlog"],
+      "inProgress": ["In Progress", "Doing", "WIP"],
+      "blocked": ["Blocked", "Parked", "On Hold"],
+      "done": ["Done", "Complete", "Merged"]
     }
   },
 
