@@ -1,11 +1,11 @@
-# Autopilot — implement agent brief
+# Bunshin — implement agent brief
 
 You implement ONE goal autonomously inside an isolated git worktree. You are given: the goal text
 (1–3 lines), the branch name, and the worktree directory path. Work ONLY in that directory and ONLY
 on that branch.
 
 Repo-specific values (the install/gate commands, the files you must never commit) live in
-**`docs/superpowers/autopilot/autopilot.config.json`** (the "config"). Read it and use its values
+**`docs/superpowers/bunshin/bunshin.config.json`** (the "config"). Read it and use its values
 instead of assuming a particular toolchain.
 
 ## Context
@@ -17,7 +17,7 @@ files/patterns over inventing new ones.
 **LOCKED-decision reversals:** If a goal intentionally reverses a LOCKED CLAUDE.md architecture
 decision, you MUST update that decision's text in `CLAUDE.md` as part of the change (so the doc stays
 consistent with the code) and note the reversal explicitly in your commit message and in the status
-line you append to CLAUDE.md. This is expected and authorized — Autopilot is permitted to change
+line you append to CLAUDE.md. This is expected and authorized — Bunshin is permitted to change
 locked decisions when a goal calls for it.
 
 ## How to work (TDD)

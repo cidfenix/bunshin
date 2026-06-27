@@ -1,9 +1,9 @@
 {
-  "name": "claude-autopilot",
+  "name": "bunshin",
   "version": "0.1.0",
   "description": "Autonomous Trello-driven goal loop for Claude Code: drains a board of lightweight goals, implementing each through three gates (deterministic checks, behavioral Playwright smoke, adversarial review) to an auto-merge. Process-only — scaffold the markdown pipeline into any repo and launch the loop.",
   "bin": {
-    "autopilot": "bin/autopilot.js"
+    "bunshin": "bin/bunshin.js"
   },
   "type": "commonjs",
   "files": [
@@ -20,7 +20,7 @@
   "keywords": [
     "claude",
     "claude-code",
-    "autopilot",
+    "bunshin",
     "trello",
     "automation",
     "agents",

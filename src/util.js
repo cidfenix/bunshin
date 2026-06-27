@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const AUTOPILOT_SUBDIR = path.join('docs', 'superpowers', 'autopilot');
+const BUNSHIN_SUBDIR = path.join('docs', 'superpowers', 'bunshin');
 
 function readVersion() {
   try {
@@ -85,7 +85,7 @@ function copyDir(srcDir, destDir, overwrite) {
 }
 
 module.exports = {
-  AUTOPILOT_SUBDIR,
+  BUNSHIN_SUBDIR,
   readVersion,
   templateDir,
   capture,

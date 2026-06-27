@@ -1,18 +1,18 @@
-# Autopilot — reusable autonomous goal loop
+# Bunshin — reusable autonomous goal loop
 
-Autopilot drains a Trello board of lightweight, human-authored goals by implementing each one fully
+Bunshin drains a Trello board of lightweight, human-authored goals by implementing each one fully
 autonomously — code → three gates → auto-merge — with **no human in the review loop**. It is
 **process-only**: no orchestrator program, just markdown the driver follows plus a single config
-file. Full design rationale: `docs/superpowers/specs/2026-06-24-autopilot-goal-loop-design.md`.
+file. Full design rationale: `docs/superpowers/specs/2026-06-24-bunshin-goal-loop-design.md`.
 
 This folder is designed to be **dropped into any repository**. All repo-specific values are isolated
-in `autopilot.config.json`; the driver and the three agent briefs are generic and read from it.
+in `bunshin.config.json`; the driver and the three agent briefs are generic and read from it.
 
 ## What's in this folder
 
 | File | Generic or per-repo? | Purpose |
 | --- | --- | --- |
-| `autopilot.config.json` | **PER-REPO** (the only file you edit) | All repo-specific values: board ids, worktree base dir, install/gate/dev-server commands, artifact dir, benign-console-error allowlist. |
+| `bunshin.config.json` | **PER-REPO** (the only file you edit) | All repo-specific values: board ids, worktree base dir, install/gate/dev-server commands, artifact dir, benign-console-error allowlist. |
 | `driver.md` | Generic | The `/loop` driver procedure: pick a card, worktree, three gates, fast-forward merge. |
 | `agents/implement.md` | Generic | Implement-agent brief (TDD, scoped commit, CLAUDE.md status line). |
 | `agents/verify.md` | Generic | Verify-agent brief (Playwright smoke + reachability + screenshot). |
@@ -20,17 +20,17 @@ in `autopilot.config.json`; the driver and the three agent briefs are generic an
 | `artifacts/` | Per-repo output | Committed Gate 2 screenshots (the audit trail). |
 
 The driver, the briefs, and the workflow do **not** change between repositories — only
-`autopilot.config.json` does.
+`bunshin.config.json` does.
 
-## How to reuse this autopilot in another repository
+## How to reuse this bunshin in another repository
 
-1. **Copy the folder.** Copy `docs/superpowers/autopilot/` into the new repo (keep the same path so
+1. **Copy the folder.** Copy `docs/superpowers/bunshin/` into the new repo (keep the same path so
    the driver's internal references resolve). You may empty `artifacts/`.
 2. **Create the Trello board.** Make a board with four lists named exactly **Pending**, **In
    Progress**, **Blocked**, **Done** (or pick your own names and set them under `board.lists`). The
    board is reached via the `mcp__trello__*` MCP server — make sure that MCP is configured for the
    project so the launched `claude` session inherits it.
-3. **Edit `autopilot.config.json`** — this is the only file you change:
+3. **Edit `bunshin.config.json`** — this is the only file you change:
    - `board.boardId` / `board.boardShortLink` / `board.boardName` — your new board's ids. (List ids
      are resolved by NAME at runtime, so you never hardcode them.)
    - `git.baseBranch` — the branch goals merge into (`master`/`main`).
@@ -49,10 +49,10 @@ The driver, the briefs, and the workflow do **not** change between repositories 
 4. **Make sure the repo has a `CLAUDE.md`** with the project's architecture, layout, conventions, and
    a "Current status / Next up" section — the agents read it for context and append a status line on
    merge.
-5. **Launch the loop.** Run `npx claude-autopilot run` (or `npx claude-autopilot run --once` /
+5. **Launch the loop.** Run `npx bunshin run` (or `npx bunshin run --once` /
    `--interval 30m` / `--unattended`). It checks the tree is clean, builds the self-paced `/loop`
-   prompt (*read `docs/superpowers/autopilot/driver.md` and drain the board*), and launches Claude
-   Code. The driver re-reads `driver.md` + `autopilot.config.json` each iteration, so the config is
+   prompt (*read `docs/superpowers/bunshin/driver.md` and drain the board*), and launches Claude
+   Code. The driver re-reads `driver.md` + `bunshin.config.json` each iteration, so the config is
    always live.
 
 ## How a goal flows (unchanged per repo)

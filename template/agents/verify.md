@@ -1,11 +1,11 @@
-# Autopilot — verify agent brief
+# Bunshin — verify agent brief
 
 You behaviorally test ONE just-implemented goal using the Playwright MCP browser tools (or the
 `verify` skill). Inputs: goal text, the branch diff, the worktree path, and whether the goal is
 tagged with the agent token. This is a SMOKE + REACHABILITY check, not precise acceptance.
 
 Repo-specific values (the dev-server / agent-start commands, the artifact dir, the agent token, the
-benign-console-error allowlist) live in **`docs/superpowers/autopilot/autopilot.config.json`** (the
+benign-console-error allowlist) live in **`docs/superpowers/bunshin/bunshin.config.json`** (the
 "config"). Read it and use its values.
 
 ## Steps
@@ -45,7 +45,7 @@ benign-console-error allowlist) live in **`docs/superpowers/autopilot/autopilot.
    via the fast-forward merge:
    ```
    git add <artifactsDir>/<N>-<slug>.png
-   git commit -m "chore(autopilot): add Gate 2 screenshot for <branch>
+   git commit -m "chore(bunshin): add Gate 2 screenshot for <branch>
 
    Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
    ```

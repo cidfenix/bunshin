@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 'use strict';
 
-// claude-autopilot CLI entry point.
-//   autopilot init [options]   scaffold the autopilot pipeline into the current repo
-//   autopilot run  [options]   launch the Claude Code /loop that drains the board
+// bunshin CLI entry point.
+//   bunshin init [options]   scaffold the bunshin pipeline into the current repo
+//   bunshin run  [options]   launch the Claude Code /loop that drains the board
 
 const { init } = require('../src/init');
 const { run } = require('../src/run');
 const { readVersion } = require('../src/util');
 
 function printHelp() {
-  console.log(`claude-autopilot — autonomous Trello-driven goal loop for Claude Code
+  console.log(`bunshin — autonomous Trello-driven goal loop for Claude Code
 
 Usage:
-  npx claude-autopilot <command> [options]
+  npx bunshin <command> [options]
 
 Commands:
-  init      Scaffold the autopilot pipeline (driver + agent briefs + config) into
-            docs/superpowers/autopilot/ in the current repository.
+  init      Scaffold the bunshin pipeline (driver + agent briefs + config) into
+            docs/superpowers/bunshin/ in the current repository.
   run       Launch the self-paced Claude Code /loop that drains the board.
 
 init options:
@@ -27,8 +27,8 @@ init options:
   --board-shortlink <s> Trello board short link.
   --board-name <name>   Trello board name (defaults to --name).
   --base-branch <b>     Branch goals merge into (default: main).
-  --worktree-dir <p>    Where per-goal worktrees are created (default: ../<repo>-autopilot).
-  --force               Overwrite an existing autopilot.config.json.
+  --worktree-dir <p>    Where per-goal worktrees are created (default: ../<repo>-bunshin).
+  --force               Overwrite an existing bunshin.config.json.
   --upgrade             Refresh the generic files (driver/agents/README) but KEEP the config.
 
 run options:

@@ -1,4 +1,4 @@
-# claude-autopilot
+# bunshin
 
 Autonomous **Trello-driven goal loop for Claude Code**. Drains a board of lightweight, human-authored
 goals by implementing each one fully autonomously — code → three gates → auto-merge — with **no human
@@ -25,45 +25,45 @@ Scaffold the pipeline into the repo you want to drain, then launch the loop:
 
 ```bash
 # from the root of your target repo
-npx claude-autopilot init
-#   …edit docs/superpowers/autopilot/autopilot.config.json (board id + your build commands)…
-npx claude-autopilot run
+npx bunshin init
+#   …edit docs/superpowers/bunshin/bunshin.config.json (board id + your build commands)…
+npx bunshin run
 ```
 
 ### `init` — scaffold
 
-Writes the generic pipeline + a config template into `docs/superpowers/autopilot/`:
+Writes the generic pipeline + a config template into `docs/superpowers/bunshin/`:
 
 ```
-docs/superpowers/autopilot/
+docs/superpowers/bunshin/
   driver.md                  # the /loop procedure (generic)
   agents/implement.md        # implement-agent brief  (generic)
   agents/verify.md           # verify-agent brief     (generic)
   agents/review.md           # review-agent brief     (generic)
   README.md                  # how-to-reuse guide
-  autopilot.config.json      # THE ONLY FILE YOU EDIT (per-repo)
+  bunshin.config.json        # THE ONLY FILE YOU EDIT (per-repo)
   artifacts/                 # committed Gate-2 screenshots
 ```
 
 Useful flags:
 
 ```bash
-npx claude-autopilot init --name MyApp --base-branch main --board-id <trelloBoardId>
-npx claude-autopilot init --upgrade   # refresh the generic files, keep your config
-npx claude-autopilot init --force     # also overwrite the config
+npx bunshin init --name MyApp --base-branch main --board-id <trelloBoardId>
+npx bunshin init --upgrade   # refresh the generic files, keep your config
+npx bunshin init --force     # also overwrite the config
 ```
 
-Only `autopilot.config.json` is repo-specific — board ids, the worktree base dir, your
+Only `bunshin.config.json` is repo-specific — board ids, the worktree base dir, your
 install/gate/dev-server commands, and the benign-console-error allowlist. The driver and briefs read
 every value from it.
 
 ### `run` — launch the loop
 
 ```bash
-npx claude-autopilot run                 # self-paced /loop, drains all Pending goals (re-checks every 20m)
-npx claude-autopilot run --once          # process exactly one goal, then stop
-npx claude-autopilot run --interval 30m  # different re-check cadence
-npx claude-autopilot run --unattended    # skip Claude Code permission prompts (hands-off — use with care)
+npx bunshin run                 # self-paced /loop, drains all Pending goals (re-checks every 20m)
+npx bunshin run --once          # process exactly one goal, then stop
+npx bunshin run --interval 30m  # different re-check cadence
+npx bunshin run --unattended    # skip Claude Code permission prompts (hands-off — use with care)
 ```
 
 `run` refuses to start if the working tree is dirty (it fast-forward-merges finished goals into the

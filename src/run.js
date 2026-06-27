@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const {
-  AUTOPILOT_SUBDIR,
+  BUNSHIN_SUBDIR,
   gitRoot,
   isCleanTree,
   hasExecutable,
@@ -12,7 +12,7 @@ const {
 } = require('./util');
 
 // Forward-slash display form of the pipeline subdir (nicer in messages on Windows).
-const SUBDIR_DISPLAY = AUTOPILOT_SUBDIR.split(path.sep).join('/');
+const SUBDIR_DISPLAY = BUNSHIN_SUBDIR.split(path.sep).join('/');
 
 function readProjectName(configPath) {
   try {
@@ -28,7 +28,7 @@ function buildPrompt(projectName, once) {
     ? "process EXACTLY ONE goal from the Trello board's Pending list"
     : "process goals from the Trello board's Pending list serially until Pending is empty";
   return (
-    `Execute the ${projectName} Autopilot: read ${AUTOPILOT_SUBDIR.split(/[\\/]/).join('/')}/driver.md ` +
+    `Execute the ${projectName} Bunshin: read ${BUNSHIN_SUBDIR.split(/[\\/]/).join('/')}/driver.md ` +
     `and ${scope} -- each through all three gates to a fast-forward merge -- ` +
     `then stop until the next scheduled run.`
   );
@@ -38,22 +38,22 @@ async function run(opts) {
   const cwd = process.cwd();
   const root = gitRoot(cwd);
   if (!root) {
-    throw new Error('Not inside a git repository. Run autopilot from the repo you want to drain.');
+    throw new Error('Not inside a git repository. Run bunshin from the repo you want to drain.');
   }
 
-  const driver = path.join(root, AUTOPILOT_SUBDIR, 'driver.md');
+  const driver = path.join(root, BUNSHIN_SUBDIR, 'driver.md');
   if (!exists(driver)) {
     throw new Error(
-      `No autopilot pipeline found at ${SUBDIR_DISPLAY}/driver.md.\n` +
-        `Run "npx claude-autopilot init" first.`
+      `No bunshin pipeline found at ${SUBDIR_DISPLAY}/driver.md.\n` +
+        `Run "npx bunshin init" first.`
     );
   }
 
-  // The autopilot fast-forward-merges into THIS working tree, so it must be clean.
+  // The bunshin fast-forward-merges into THIS working tree, so it must be clean.
   const clean = isCleanTree(root);
   if (clean === false) {
     throw new Error(
-      'Working tree is not clean. Commit or stash your changes before running Autopilot\n' +
+      'Working tree is not clean. Commit or stash your changes before running Bunshin\n' +
         '(it fast-forward-merges finished goals into this tree).'
     );
   }
@@ -68,13 +68,13 @@ async function run(opts) {
   const interval = opts.interval || '20m';
   const once = Boolean(opts.once);
   const unattended = Boolean(opts.unattended);
-  const projectName = readProjectName(path.join(root, AUTOPILOT_SUBDIR, 'autopilot.config.json'));
+  const projectName = readProjectName(path.join(root, BUNSHIN_SUBDIR, 'bunshin.config.json'));
 
   const prompt = buildPrompt(projectName, once);
   const loopCmd = `/loop ${interval} ${prompt}`;
 
   console.log(
-    `Launching Autopilot (interval: ${interval}, once: ${once}, unattended: ${unattended})`
+    `Launching Bunshin (interval: ${interval}, once: ${once}, unattended: ${unattended})`
   );
   if (unattended) {
     console.log(

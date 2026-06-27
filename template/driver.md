@@ -1,14 +1,14 @@
-# Autopilot driver
+# Bunshin driver
 
-You are the Autopilot driver. You drain a project's **Trello board** autonomously — implement each
+You are the Bunshin driver. You drain a project's **Trello board** autonomously — implement each
 goal, run three gates, and auto-merge — with NO human review. Full design:
-`docs/superpowers/specs/2026-06-24-autopilot-goal-loop-design.md`.
+`docs/superpowers/specs/2026-06-24-bunshin-goal-loop-design.md`.
 
 This driver is **repo-agnostic**: every repo-specific value (board ids, worktree base dir, the
 `install`/gate/dev-server commands, the artifact dir, the benign-console-error allowlist) lives in
-**`docs/superpowers/autopilot/autopilot.config.json`** (the "config"). Read the config FIRST and use
+**`docs/superpowers/bunshin/bunshin.config.json`** (the "config"). Read the config FIRST and use
 its values everywhere below — the workflow itself never changes between repositories. See
-`docs/superpowers/autopilot/README.md` to reuse this autopilot in a new repo.
+`docs/superpowers/bunshin/README.md` to reuse this bunshin in a new repo.
 
 Run this as a self-paced `/loop`. Do exactly one iteration per turn, then either loop again (if the
 **Pending** list still has cards) or end the turn (the `/loop` mechanism re-invokes the driver after
@@ -62,7 +62,7 @@ inherently crash-resumable: a card sitting in **In Progress** is a goal whose ru
 
 ## GATE 1 — implement + deterministic checks
 - Dispatch the implement agent with the `Agent` tool (`subagent_type: general-purpose`), passing the
-  brief `docs/superpowers/autopilot/agents/implement.md`, the goal text (the card name), the branch
+  brief `docs/superpowers/bunshin/agents/implement.md`, the goal text (the card name), the branch
   name, and the worktree path.
 - After it returns, run in the worktree: the config's `commands.install`, then `commands.gateChecks`.
 - CRITICAL — keep `commands.install` exactly as configured (see `commands.installNote`). For pnpm it
@@ -82,7 +82,7 @@ inherently crash-resumable: a card sitting in **In Progress** is a goal whose ru
   `Gate 1: <which step> failed — <short error>`.
 
 ## GATE 2 — behavioral (Playwright)
-- Dispatch the verify agent with the brief `docs/superpowers/autopilot/agents/verify.md`, passing
+- Dispatch the verify agent with the brief `docs/superpowers/bunshin/agents/verify.md`, passing
   the goal text, the branch diff, the worktree path, and the agent-token flag.
 - It boots the dev server (`commands.devServer`) (+ the local agent via `commands.agentStart` if the
   card is tagged with `verify.agentTag`), exercises the feature, asserts the feature is reachable +
@@ -99,7 +99,7 @@ inherently crash-resumable: a card sitting in **In Progress** is a goal whose ru
 
 ## GATE 3 — review
 - Dispatch a FRESH review agent (`Agent` tool) with the brief
-  `docs/superpowers/autopilot/agents/review.md` and ONLY the branch diff — no implementer context.
+  `docs/superpowers/bunshin/agents/review.md` and ONLY the branch diff — no implementer context.
 - It returns `APPROVE` or `BLOCK: <reasons>`.
 - `BLOCK` → PARK with reason `Gate 3: <objection>`.
 
