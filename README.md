@@ -155,11 +155,18 @@ npx github:cidfenix/bunshin watch --open     # …and open it in your browser
 npx github:cidfenix/bunshin watch --port 5000
 ```
 
-The dashboard has **two view modes**, switched by a header toggle (your choice is remembered):
-**Pro** — the clean status-tile grid — and **🥷 Bunshin** — a pixel-art "nerd" view that renders the
-pipeline literally as *Kage Bunshin no Jutsu*: each repo's loop is a ninja that idles / checks the
-board, then casts a shadow clone to work a goal, and that clone poofs a sub-clone at the active gate
-station (Gate 1 → Gate 2 → Gate 3 → Merge). Same data, just for fun.
+The dashboard has **two view modes**, switched by a header toggle (your choice is remembered).
+
+**Pro** — the clean status-tile grid:
+
+![Bunshin watch — Pro view](assets/watch-pro.png)
+
+**🥷 Bunshin** — a pixel-art "nerd" view that renders the pipeline literally as *Kage Bunshin no
+Jutsu*: each repo's loop is a ninja that idles / checks the board, then casts a shadow clone to work a
+goal, and that clone poofs a sub-clone at the active gate station (Gate 1 → Gate 2 → Gate 3 → Merge).
+Same data, just for fun.
+
+![Bunshin watch — Bunshin nerd view](assets/watch-bunshin.png)
 
 Every `bunshin run` registers itself in a shared per-user home, **`~/.bunshin/`** — that directory is
 what relates your repos. `run` records each repo's identity and process there; the driver writes a
