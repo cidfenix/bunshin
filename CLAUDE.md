@@ -50,6 +50,15 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 4. **The board IS the queue.** A goal is one Trello card; status is encoded by which list it's in
    (Pending → In Progress → Blocked → Done). No queue file — the run is crash-resumable from the
    board. Execution is **serial** and parks on the **first** gate failure (no auto-repair/retry).
+   List names are matched tolerantly (aliases + case/space/hyphen-insensitive), so `TODO`/`To Do`
+   both resolve.
+
+5. **Integration is configurable** (`merge.mode`). `auto` (default) = local fast-forward merge to
+   `baseBranch`, card → Done — no remote/GitHub needed. `pr` = push the branch, open a GitHub PR,
+   card → **In Review**, and a **review reaper** (driver step 0, PR mode only) auto-merges it once the
+   `merge.autoMerge` gate is met (≥N approvals and/or a label, optionally green checks) — or, with the
+   gate disabled, just syncs the card to Done after a human merges. PR mode needs a remote + `gh` CLI
+   or a GitHub MCP. Keep both paths working when editing `template/driver.md`.
 
 ---
 

@@ -108,12 +108,19 @@ current tree) or if there's no `bunshin.config.json` yet.
 3. **Gate 2 (behavioral):** a verify agent boots your dev server, exercises the feature with
    Playwright, asserts it renders with no new console errors, and commits a screenshot.
 4. **Gate 3 (review):** a fresh adversarial agent reviews the diff and returns BLOCK or APPROVE.
-5. **Merge:** rebase onto the base branch, re-run `gateChecks`, fast-forward merge, move the card to
-   **Done**. Any gate failure → **Blocked** with the reason (branch kept).
+5. **Integrate** (configurable via `merge.mode`):
+   - **`auto`** (default): rebase, re-run `gateChecks`, fast-forward merge into the base branch, card
+     → **Done**. No remote or GitHub needed.
+   - **`pr`**: push the branch, open a GitHub **Pull Request**, card → **In Review**. A review reaper
+     then auto-merges it once your gate is met — **≥ N approvals and/or a label** (optionally green
+     checks) — or, with the gate off, simply marks the card **Done** after a human merges. Needs a
+     remote + the `gh` CLI or a GitHub MCP.
 
-The card's list is the authoritative status, so a run is **crash-resumable**. Execution is **serial**
-and parks on the **first** gate failure — no auto-repair; you re-queue by dragging the card back to
-**Pending**.
+   Any gate failure → **Blocked** with the reason (branch kept).
+
+The card's list is the authoritative status, so a run is **crash-resumable**. Implementation is
+**serial** and parks on the **first** gate failure — no auto-repair; you re-queue by dragging the card
+back to **Pending**. (In `pr` mode, multiple PRs can sit in **In Review** at once.)
 
 ## License
 

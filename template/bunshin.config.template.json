@@ -12,11 +12,12 @@
     "boardShortLink": "{{BOARD_SHORTLINK}}",
     "boardName": "{{BOARD_NAME}}",
     "lists": {
-      "$comment": "Each logical column maps to one or more acceptable list NAMES (aliases). A value may be a single string OR an array of strings. Matching is case-insensitive and ignores spaces, hyphens and underscores, so a board column named 'TODO', 'To Do' or 'TO-DO' all match the 'To Do' alias. The first board list matching any alias wins. Add or replace these with whatever your board actually uses.",
+      "$comment": "Each logical column maps to one or more acceptable list NAMES (aliases). A value may be a single string OR an array of strings. Matching is case-insensitive and ignores spaces, hyphens and underscores, so a board column named 'TODO', 'To Do' or 'TO-DO' all match the 'To Do' alias. The first board list matching any alias wins. Add or replace these with whatever your board actually uses. 'inReview' is ONLY used when merge.mode is 'pr' (cards land there awaiting review); omit it for 'auto' mode.",
       "pending": ["Pending", "To Do", "Backlog"],
       "inProgress": ["In Progress", "Doing", "WIP"],
       "blocked": ["Blocked", "Parked", "On Hold"],
-      "done": ["Done", "Complete", "Merged"]
+      "done": ["Done", "Complete", "Merged"],
+      "inReview": ["In Review", "Review", "Reviewing"]
     }
   },
 
@@ -25,6 +26,19 @@
     "baseBranch": "{{BASE_BRANCH}}",
     "branchPrefix": "goal/",
     "worktreeBaseDir": "{{WORKTREE_BASE_DIR}}"
+  },
+
+  "merge": {
+    "$comment": "How a goal that passes all three gates is integrated. 'auto' (default) = local fast-forward merge into baseBranch — no remote or GitHub needed. 'pr' = push the branch, open a GitHub Pull Request, move the card to the board.lists.inReview column, and let autoMerge below decide when it merges (so humans can review first). PR mode needs a git remote AND GitHub access: an authenticated `gh` CLI or a GitHub MCP server.",
+    "mode": "auto",
+    "remote": "origin",
+    "prMethod": "squash",
+    "autoMerge": {
+      "$comment": "When mode='pr', an open PR auto-merges once ALL the gates you set here pass. Disable a gate with its neutral value: approvals 0, label \"\". With BOTH disabled (approvals 0 AND label \"\"), Bunshin opens the PR but NEVER auto-merges — a human merges on GitHub and the reaper just moves the card to Done once it sees the merge.",
+      "approvals": 1,
+      "label": "",
+      "requireChecksGreen": true
+    }
   },
 
   "artifactsDir": ".bunshin/artifacts",

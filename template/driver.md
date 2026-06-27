@@ -38,12 +38,16 @@ inherently crash-resumable: a card sitting in **In Progress** is a goal whose ru
 
 ## One iteration
 
+0. **PR mode only** (`merge.mode` = `pr`): run the **REVIEW REAPER** (below) FIRST — reconcile every
+   card in **In Review** with its PR (merge the ones whose gate is now met, move merged ones to Done,
+   park closed ones). Skip this step entirely in `auto` mode.
 1. Resolve the lists. If a card is already in **In Progress** (a crashed/interrupted run), RESUME
    that card — its branch `<git.branchPrefix><N>-<slug>` and worktree may already exist; re-derive
    N/slug from it (step 2) and continue from the gates (step 5). Otherwise read the **Pending** list
    (`get_cards_by_list_id`) and take the FIRST card (top of the list = `pos` order).
    - If **Pending** is empty (and nothing is In Progress): END THE TURN. The `/loop` mechanism will
-     re-invoke this driver after its idle interval; no manual scheduling is needed.
+     re-invoke this driver after its idle interval; no manual scheduling is needed. (In PR mode, any
+     un-merged **In Review** cards are reconciled by the reaper on each subsequent wake.)
 2. Derive identifiers from the card:
    - `N` = the card's **`idShort`** (the board-unique `#N` Trello assigns — stable, no scanning).
    - slug = kebab-case the card name, keep ~5 words. Branch/dir name = `<git.branchPrefix><N>-<slug>`
@@ -55,8 +59,11 @@ inherently crash-resumable: a card sitting in **In Progress** is a goal whose ru
    `git worktree add <git.worktreeBaseDir>/<N>-<slug> -b <git.branchPrefix><N>-<slug> <git.baseBranch>`
    All implementation/test work happens in that worktree directory.
 5. Run GATE 1, then GATE 2, then GATE 3 (below), fail-fast.
-6. If ALL gates pass → MERGE (below), then move the card **→ Done** (`move_card`) and post the merge
-   sha as a comment: `add_comment` with `merged: <merge-sha>`.
+6. If ALL gates pass → **INTEGRATE** (below — behaviour depends on `merge.mode`):
+   - `auto`: local fast-forward merge, then move the card **→ Done** (`move_card`) and `add_comment`
+     `merged: <merge-sha>`.
+   - `pr`: push the branch + open a Pull Request, then move the card **→ In Review** (`move_card`)
+     and `add_comment` `PR: <url>`. The reaper merges it later once the gate is met.
    If ANY gate failed → PARK: move the card **→ Blocked** (`move_card`) and `add_comment` with
    `Blocked: <reason> (branch: <git.branchPrefix><N>-<slug>)`; remove the worktree
    (`git worktree remove --force <git.worktreeBaseDir>/<N>-<slug>`) but KEEP the branch.
@@ -109,7 +116,10 @@ inherently crash-resumable: a card sitting in **In Progress** is a goal whose ru
 - It returns `APPROVE` or `BLOCK: <reasons>`.
 - `BLOCK` → PARK with reason `Gate 3: <objection>`.
 
-## MERGE (local fast-forward)
+## INTEGRATION
+Behaviour depends on `merge.mode` (default `auto`).
+
+### mode `auto` — local fast-forward merge (no remote / GitHub needed)
 1. Rebase the branch onto the latest base branch:
    `git -C <git.worktreeBaseDir>/<N>-<slug> rebase <git.baseBranch>`.
 2. Re-run GATE 1's checks in the worktree (`commands.gateChecks`). Fail → PARK with reason
@@ -119,10 +129,43 @@ inherently crash-resumable: a card sitting in **In Progress** is a goal whose ru
    `git branch -d <git.branchPrefix><N>-<slug>`. (On Windows, if `git worktree remove` fails with
    "Filename too long", delete the dir with a long-path-safe method then `git worktree prune` — see
    the PARK note.)
-5. Record the resulting merge sha for the Done card's comment.
+5. Record the resulting merge sha, move the card **→ Done**, comment `merged: <sha>`.
+
+### mode `pr` — open a Pull Request (human review gate)
+Needs a git remote (`merge.remote`, default `origin`) and GitHub access — an authenticated `gh` CLI
+**or** a GitHub MCP server. Use whichever is available.
+1. Rebase onto the latest base: `git fetch <merge.remote>` then
+   `git -C <worktree> rebase <merge.remote>/<git.baseBranch>` (fall back to local `<git.baseBranch>`
+   if there's no remote-tracking base). Re-run `commands.gateChecks`. Fail → PARK
+   `Merge re-gate failed — <short error>`.
+2. Push the branch: `git -C <worktree> push -u <merge.remote> <git.branchPrefix><N>-<slug>`.
+3. Open a PR from the branch into `<git.baseBranch>` — `gh pr create --base <git.baseBranch> --head
+   <branch> --fill` (or the GitHub MCP). Title + body from the goal text and the implement agent's
+   summary.
+4. Move the card **→ In Review**, comment `PR: <url>`. Remove the worktree (the branch now lives on
+   the remote) — the remote branch + PR persist. **Do NOT merge here**; the reaper does, once the
+   `merge.autoMerge` gate is met.
+
+## REVIEW REAPER (PR mode only — step 0, runs first every iteration)
+For each card in **In Review**, find its PR (from the card's `PR: <url>` comment, or by the branch
+`<git.branchPrefix><N>-<slug>`) and reconcile via `gh`/the GitHub MCP:
+- PR **merged** (by anyone) → move the card **→ Done**, comment `merged: <sha>`.
+- PR **open** and it meets the `merge.autoMerge` gate → **merge it**, then card **→ Done**:
+  - Gate = ALL configured conditions hold: at least `autoMerge.approvals` approving reviews (skip if
+    `0`); the `autoMerge.label` is present on the PR (skip if `""`); and, if
+    `autoMerge.requireChecksGreen` is true, all required status checks are green.
+  - Merge with `merge.prMethod`: `gh pr merge <url> --squash|--merge|--rebase` (delete the remote
+    branch after).
+- PR **closed without merging** → move the card **→ Blocked**, comment `PR closed unmerged: <url>`.
+- Otherwise (open, gate not yet met) → leave the card in **In Review**; the next wake re-checks.
+
+If `autoMerge.approvals` is `0` AND `autoMerge.label` is `""`, the reaper NEVER auto-merges — it only
+syncs status (humans merge on GitHub; the reaper moves the card to Done once it sees the merge).
 
 ## Rules
-- SERIAL only — never create a second worktree while one is in flight.
+- SERIAL implementation — never create a second worktree while one goal is being implemented. (In PR
+  mode multiple PRs may sit open in **In Review** at once; that's fine — only the
+  implement→gates→integrate work is serial. The reaper merges open PRs at the start of each iteration.)
 - PARK on the FIRST gate failure. No repair, no retry. Playwright infra flakes are parked too; name
   them in the reason so they're easy to re-queue (drag the card back to Pending on the board).
 - NEVER merge anything that didn't pass all three gates before the rebase AND Gate 1 (gateChecks)
