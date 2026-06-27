@@ -11,7 +11,8 @@
 <p align="center">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-%2Floop-ff7a18">
   <img alt="process-only" src="https://img.shields.io/badge/orchestrator-none%20(process--only)-1b1226">
-  <img alt="dependencies" src="https://img.shields.io/badge/dependencies-zero-2ea043">
+  <img alt="npm dependencies" src="https://img.shields.io/badge/npm%20deps-0-2ea043">
+  <img alt="requires" src="https://img.shields.io/badge/requires-Claude%20Code%20%2B%20Trello%20%26%20Playwright%20MCP-ff7a18">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -38,7 +39,9 @@ and a thin CLI that drops a single per-repo config file into any repo and launch
 - The **Trello MCP server** configured for the target project (the driver moves cards between lists
   through `mcp__trello__*` tools).
 - The **Playwright MCP server** configured (Gate 2 smoke-tests the change in a browser).
-- Node.js ≥ 18 (only needed to run the CLI itself; it has **zero dependencies**).
+- Node.js ≥ 18 — only to run the CLI itself, which has **zero npm dependencies** (pure Node
+  built-ins, so `npx` pulls in nothing). Note this is separate from the runtime prerequisites above:
+  the **pipeline needs Claude Code + the Trello & Playwright MCP servers** to actually do its work.
 
 > The CLI can scaffold files and launch `claude`, but it **cannot** install/configure the MCP servers
 > for you — that's a one-time Claude Code setup in the target project.
