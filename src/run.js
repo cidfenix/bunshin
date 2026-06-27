@@ -4,15 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const {
-  BUNSHIN_SUBDIR,
+  CONFIG_FILENAME,
+  packageDriverPath,
   gitRoot,
   isCleanTree,
   hasExecutable,
   exists,
 } = require('./util');
-
-// Forward-slash display form of the pipeline subdir (nicer in messages on Windows).
-const SUBDIR_DISPLAY = BUNSHIN_SUBDIR.split(path.sep).join('/');
 
 function readProjectName(configPath) {
   try {
@@ -23,14 +21,20 @@ function readProjectName(configPath) {
   }
 }
 
-function buildPrompt(projectName, once) {
+// The driver lives in the installed package; the repo only owns CONFIG_FILENAME at its
+// root. We hand Claude Code the absolute path to the package driver so one canonical copy
+// drives every repo. The driver itself reads ./bunshin.config.json and dispatches the
+// agent briefs that sit in `agents/` beside it.
+function buildPrompt(projectName, once, driverPath) {
   const scope = once
     ? "process EXACTLY ONE goal from the Trello board's Pending list"
     : "process goals from the Trello board's Pending list serially until Pending is empty";
+  const driver = driverPath.split(/[\\/]/).join('/');
   return (
-    `Execute the ${projectName} Bunshin: read ${BUNSHIN_SUBDIR.split(/[\\/]/).join('/')}/driver.md ` +
-    `and ${scope} -- each through all three gates to a fast-forward merge -- ` +
-    `then stop until the next scheduled run.`
+    `Execute the ${projectName} Bunshin: read the Bunshin driver at ${driver} (its agent briefs are ` +
+    `in the agents/ folder beside it) and follow it to ${scope} -- each through all three gates to a ` +
+    `fast-forward merge. The per-repo config is ${CONFIG_FILENAME} at the root of the current repo. ` +
+    `Then stop until the next scheduled run.`
   );
 }
 
@@ -41,15 +45,14 @@ async function run(opts) {
     throw new Error('Not inside a git repository. Run bunshin from the repo you want to drain.');
   }
 
-  const driver = path.join(root, BUNSHIN_SUBDIR, 'driver.md');
-  if (!exists(driver)) {
+  const configPath = path.join(root, CONFIG_FILENAME);
+  if (!exists(configPath)) {
     throw new Error(
-      `No bunshin pipeline found at ${SUBDIR_DISPLAY}/driver.md.\n` +
-        `Run "npx bunshin init" first.`
+      `No ${CONFIG_FILENAME} found at the repo root.\n` + `Run "npx bunshin init" first.`
     );
   }
 
-  // The bunshin fast-forward-merges into THIS working tree, so it must be clean.
+  // The bunshin loop fast-forward-merges into THIS working tree, so it must be clean.
   const clean = isCleanTree(root);
   if (clean === false) {
     throw new Error(
@@ -68,9 +71,9 @@ async function run(opts) {
   const interval = opts.interval || '20m';
   const once = Boolean(opts.once);
   const unattended = Boolean(opts.unattended);
-  const projectName = readProjectName(path.join(root, BUNSHIN_SUBDIR, 'bunshin.config.json'));
+  const projectName = readProjectName(configPath);
 
-  const prompt = buildPrompt(projectName, once);
+  const prompt = buildPrompt(projectName, once, packageDriverPath());
   const loopCmd = `/loop ${interval} ${prompt}`;
 
   console.log(

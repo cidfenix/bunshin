@@ -5,7 +5,7 @@ Input: a branch diff only. Decide BLOCK or APPROVE. This is the last gate before
 auto-merge to the base branch — there is no human after you.
 
 Repo-specific values (notably the files that must never be committed) live in
-**`docs/superpowers/bunshin/bunshin.config.json`** (the "config"). Read it, and read `CLAUDE.md`
+**`bunshin.config.json`** (the "config"). Read it, and read `CLAUDE.md`
 for the project conventions you enforce.
 
 ## Reject (BLOCK) criteria

@@ -5,7 +5,7 @@ You behaviorally test ONE just-implemented goal using the Playwright MCP browser
 tagged with the agent token. This is a SMOKE + REACHABILITY check, not precise acceptance.
 
 Repo-specific values (the dev-server / agent-start commands, the artifact dir, the agent token, the
-benign-console-error allowlist) live in **`docs/superpowers/bunshin/bunshin.config.json`** (the
+benign-console-error allowlist) live in **`bunshin.config.json`** (the
 "config"). Read it and use its values.
 
 ## Steps
@@ -40,9 +40,10 @@ benign-console-error allowlist) live in **`docs/superpowers/bunshin/bunshin.conf
    into the MAIN session working directory, NOT the worktree — so save/copy the file to the worktree
    path `<worktree>/<artifactsDir>/<N>-<slug>.png`, where `<artifactsDir>` is the config's
    `artifactsDir` and `<N>-<slug>` is the branch name minus the `git.branchPrefix` (e.g.
-   `1-add-repo-drag-drop` for branch `goal/1-add-repo-drag-drop`). Verify it actually exists at that
-   worktree path before committing. Then commit it on the goal branch so it reaches the base branch
-   via the fast-forward merge:
+   `1-add-repo-drag-drop` for branch `goal/1-add-repo-drag-drop`). Create the directory first if it
+   doesn't exist (`mkdir -p <artifactsDir>` in the worktree — bunshin no longer scaffolds it), and
+   verify the file actually exists at that worktree path before committing. Then commit it on the goal
+   branch so it reaches the base branch via the fast-forward merge:
    ```
    git add <artifactsDir>/<N>-<slug>.png
    git commit -m "chore(bunshin): add Gate 2 screenshot for <branch>

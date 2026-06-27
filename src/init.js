@@ -2,19 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const {
-  BUNSHIN_SUBDIR,
-  templateDir,
-  gitRoot,
-  exists,
-  ensureDir,
-  copyFile,
-  copyDir,
-} = require('./util');
-
-// Files copied verbatim from the package template (generic; read every repo-specific
-// value from bunshin.config.json). The config itself is handled separately.
-const GENERIC_FILES = ['driver.md', 'README.md'];
+const { CONFIG_FILENAME, templateDir, gitRoot, exists } = require('./util');
 
 function resolveTargetRoot(opts) {
   if (opts.dir) return path.resolve(opts.dir);
@@ -39,65 +27,44 @@ function renderConfig(templatePath, opts, targetRoot) {
   return text;
 }
 
+// Config-only model: the only thing a consuming repo owns is bunshin.config.json at
+// its root. The driver + agent briefs are served from the installed package at run
+// time (see `bunshin run`), so there are no generic pipeline files to scaffold.
 async function init(opts) {
-  const tpl = templateDir();
   const targetRoot = resolveTargetRoot(opts);
-  const destDir = path.join(targetRoot, BUNSHIN_SUBDIR);
+  const configDest = path.join(targetRoot, CONFIG_FILENAME);
 
   if (!exists(path.join(targetRoot, '.git'))) {
     console.warn(`Warning: ${targetRoot} does not look like a git repo root (no .git). Continuing anyway.`);
   }
 
-  ensureDir(destDir);
-
-  // Generic markdown — overwrite on --force/--upgrade, otherwise keep existing.
-  const overwriteGeneric = Boolean(opts.force || opts.upgrade);
-  for (const f of GENERIC_FILES) {
-    const wrote = copyFile(path.join(tpl, f), path.join(destDir, f), overwriteGeneric);
-    console.log(`${wrote ? 'wrote' : 'kept'}   ${path.join(BUNSHIN_SUBDIR, f)}`);
-  }
-  copyDir(path.join(tpl, 'agents'), path.join(destDir, 'agents'), overwriteGeneric);
-  console.log(`${overwriteGeneric ? 'wrote' : 'ensured'} ${path.join(BUNSHIN_SUBDIR, 'agents')}/ (implement.md, verify.md, review.md)`);
-
-  // Artifacts dir with a .gitkeep so it survives a fresh clone.
-  const artifacts = path.join(destDir, 'artifacts');
-  ensureDir(artifacts);
-  const gitkeep = path.join(artifacts, '.gitkeep');
-  if (!exists(gitkeep)) fs.writeFileSync(gitkeep, '');
-  console.log(`ensured ${path.join(BUNSHIN_SUBDIR, 'artifacts')}/`);
-
-  // Config — never clobbered unless --force. --upgrade explicitly preserves it.
-  const configDest = path.join(destDir, 'bunshin.config.json');
   if (exists(configDest) && !opts.force) {
-    console.log(`kept    ${path.join(BUNSHIN_SUBDIR, 'bunshin.config.json')} (already present; pass --force to overwrite)`);
-  } else if (opts.upgrade) {
-    console.log(`kept    ${path.join(BUNSHIN_SUBDIR, 'bunshin.config.json')} (--upgrade preserves the config)`);
+    console.log(`kept    ${CONFIG_FILENAME} (already present; pass --force to overwrite)`);
   } else {
-    const rendered = renderConfig(path.join(tpl, 'bunshin.config.template.json'), opts, targetRoot);
+    const rendered = renderConfig(path.join(templateDir(), 'bunshin.config.template.json'), opts, targetRoot);
     fs.writeFileSync(configDest, rendered);
-    console.log(`wrote   ${path.join(BUNSHIN_SUBDIR, 'bunshin.config.json')}`);
+    console.log(`wrote   ${CONFIG_FILENAME}`);
   }
 
-  printNextSteps(targetRoot, opts);
+  printNextSteps(targetRoot);
 }
 
-function printNextSteps(targetRoot, opts) {
+function printNextSteps(targetRoot) {
   const hasMcp =
     exists(path.join(targetRoot, '.mcp.json')) ||
     exists(path.join(targetRoot, '.claude', 'settings.json'));
 
-  console.log('\n✅ Bunshin scaffolded.\n');
-  if (opts.upgrade) {
-    console.log('Generic files refreshed; your bunshin.config.json was left untouched.\n');
-    return;
-  }
+  console.log('\n✅ Bunshin ready.\n');
   console.log('Next steps:');
-  console.log(`  1. Edit ${path.join(BUNSHIN_SUBDIR, 'bunshin.config.json')} — fill in the Trello board id`);
-  console.log('     and the project\'s install / gate / dev-server commands.');
+  console.log(`  1. Edit ${CONFIG_FILENAME} — fill in the Trello board id and the project's`);
+  console.log('     install / gate / dev-server commands.');
   console.log('  2. Create a Trello board with lists: Pending, In Progress, Blocked, Done.');
   console.log(`  3. Ensure the Trello + Playwright MCP servers are configured for this project${hasMcp ? '' : ' (no .mcp.json / .claude/settings.json found yet)'}.`);
   console.log('  4. Make sure CLAUDE.md describes the project (the agents read it for context).');
-  console.log('  5. Launch:  npx bunshin run');
+  console.log('  5. Commit bunshin.config.json, then launch:  npx bunshin run');
+  console.log('');
+  console.log('The driver + agent briefs are served from the bunshin package — nothing else is');
+  console.log('added to your repo. Update the pipeline with:  npm i -g bunshin@latest');
   console.log('');
 }
 

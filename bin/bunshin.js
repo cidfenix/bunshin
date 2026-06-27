@@ -2,7 +2,7 @@
 'use strict';
 
 // bunshin CLI entry point.
-//   bunshin init [options]   scaffold the bunshin pipeline into the current repo
+//   bunshin init [options]   write a bunshin.config.json into the current repo
 //   bunshin run  [options]   launch the Claude Code /loop that drains the board
 
 const { init } = require('../src/init');
@@ -16,8 +16,8 @@ Usage:
   npx bunshin <command> [options]
 
 Commands:
-  init      Scaffold the bunshin pipeline (driver + agent briefs + config) into
-            docs/superpowers/bunshin/ in the current repository.
+  init      Write a bunshin.config.json into the current repo (the only per-repo file;
+            the driver + agent briefs are served from this package at run time).
   run       Launch the self-paced Claude Code /loop that drains the board.
 
 init options:
@@ -29,7 +29,6 @@ init options:
   --base-branch <b>     Branch goals merge into (default: main).
   --worktree-dir <p>    Where per-goal worktrees are created (default: ../<repo>-bunshin).
   --force               Overwrite an existing bunshin.config.json.
-  --upgrade             Refresh the generic files (driver/agents/README) but KEEP the config.
 
 run options:
   --interval <t>        Re-check cadence for the /loop (default: 20m).
@@ -46,7 +45,7 @@ function parseArgs(argv) {
   const opts = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--once' || a === '--unattended' || a === '--force' || a === '--upgrade') {
+    if (a === '--once' || a === '--unattended' || a === '--force') {
       opts[a.slice(2)] = true;
     } else if (a.startsWith('--')) {
       const key = a.slice(2);

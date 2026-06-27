@@ -21,41 +21,38 @@ scaffolds them into any repo and launches the Claude Code `/loop` that follows t
 
 ## Usage
 
-Scaffold the pipeline into the repo you want to drain, then launch the loop:
+Drop one config file into the repo you want to drain, then launch the loop:
 
 ```bash
 # from the root of your target repo
 npx bunshin init
-#   …edit docs/superpowers/bunshin/bunshin.config.json (board id + your build commands)…
+#   …edit bunshin.config.json (board id + your build commands)…  then commit it
 npx bunshin run
 ```
 
-### `init` — scaffold
+### `init` — write the config
 
-Writes the generic pipeline + a config template into `docs/superpowers/bunshin/`:
+Bunshin is **config-only**: the only file it adds to your repo is **`bunshin.config.json`** at the
+root. The driver + the three agent briefs live inside this package and are served from there at run
+time, so there's nothing generic to copy into (or duplicate across) your repos.
 
 ```
-docs/superpowers/bunshin/
-  driver.md                  # the /loop procedure (generic)
-  agents/implement.md        # implement-agent brief  (generic)
-  agents/verify.md           # verify-agent brief     (generic)
-  agents/review.md           # review-agent brief     (generic)
-  README.md                  # how-to-reuse guide
-  bunshin.config.json        # THE ONLY FILE YOU EDIT (per-repo)
-  artifacts/                 # committed Gate-2 screenshots
+your-repo/
+  bunshin.config.json        # THE ONLY FILE BUNSHIN ADDS (per-repo) — commit it
+  .bunshin/artifacts/        # committed Gate-2 screenshots (created on first run)
 ```
 
 Useful flags:
 
 ```bash
 npx bunshin init --name MyApp --base-branch main --board-id <trelloBoardId>
-npx bunshin init --upgrade   # refresh the generic files, keep your config
-npx bunshin init --force     # also overwrite the config
+npx bunshin init --force     # overwrite an existing bunshin.config.json
 ```
 
-Only `bunshin.config.json` is repo-specific — board ids, the worktree base dir, your
+`bunshin.config.json` is the only repo-specific thing — board ids, the worktree base dir, your
 install/gate/dev-server commands, and the benign-console-error allowlist. The driver and briefs read
-every value from it.
+every value from it. **Update the pipeline** for all your repos at once with `npm i -g bunshin@latest`
+— no per-repo changes.
 
 ### `run` — launch the loop
 
@@ -67,7 +64,7 @@ npx bunshin run --unattended    # skip Claude Code permission prompts (hands-off
 ```
 
 `run` refuses to start if the working tree is dirty (it fast-forward-merges finished goals into the
-current tree) or if no pipeline has been scaffolded yet.
+current tree) or if there's no `bunshin.config.json` yet.
 
 ## How a goal flows
 

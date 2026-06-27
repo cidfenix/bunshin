@@ -5,7 +5,7 @@ You implement ONE goal autonomously inside an isolated git worktree. You are giv
 on that branch.
 
 Repo-specific values (the install/gate commands, the files you must never commit) live in
-**`docs/superpowers/bunshin/bunshin.config.json`** (the "config"). Read it and use its values
+**`bunshin.config.json`** (the "config"). Read it and use its values
 instead of assuming a particular toolchain.
 
 ## Context

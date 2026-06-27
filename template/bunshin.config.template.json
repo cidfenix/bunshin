@@ -1,5 +1,5 @@
 {
-  "$comment": "Bunshin per-repository configuration. The driver (driver.md) and the three agent briefs (agents/{implement,verify,review}.md) read EVERY repo-specific value from this file; the markdown procedure itself stays generic. EDIT THIS FILE for your project: fill in the Trello board id and your project's install/gate/dev-server commands and the benign-console-error allowlist. The pnpm commands below are EXAMPLES — replace them with your toolchain (npm/yarn/cargo/etc). See README.md for a field-by-field guide.",
+  "$comment": "Bunshin per-repository configuration. The driver (driver.md) and the three agent briefs (agents/{implement,verify,review}.md) read EVERY repo-specific value from this file; the markdown procedure itself stays generic. EDIT THIS FILE for your project: fill in the Trello board id and your project's install/gate/dev-server commands and the benign-console-error allowlist. The pnpm commands below are EXAMPLES — replace them with your toolchain (npm/yarn/cargo/etc). See the bunshin package README for a field-by-field guide. This is the ONLY file bunshin adds to your repo — the driver + agent briefs are served from the installed package.",
 
   "project": {
     "$comment": "Human-readable project name, used in launcher prose and reports.",
@@ -27,7 +27,7 @@
     "worktreeBaseDir": "{{WORKTREE_BASE_DIR}}"
   },
 
-  "artifactsDir": "docs/superpowers/bunshin/artifacts",
+  "artifactsDir": ".bunshin/artifacts",
 
   "commands": {
     "$comment": "Per-project shell commands the gates run. REPLACE these for your toolchain. `gateChecks` runs in Gate 1 and again after the merge rebase. `devServer`/`agentStart` are used by Gate 2 (behavioral); if your project has no web UI to smoke-test, adapt the verify brief accordingly. For pnpm keep the no-build-scripts flag — see installNote.",
