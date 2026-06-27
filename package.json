@@ -1,6 +1,6 @@
 {
   "name": "bunshin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Autonomous Trello-driven goal loop for Claude Code: drains a board of lightweight goals, implementing each through three gates (deterministic checks, behavioral Playwright smoke, adversarial review) to an auto-merge. Process-only — scaffold the markdown pipeline into any repo and launch the loop.",
   "bin": {
     "bunshin": "bin/bunshin.js"
