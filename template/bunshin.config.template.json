@@ -11,6 +11,11 @@
     "kind": "jira"
   },
 
+  "agent": {
+    "$comment": "Which agent CLI Bunshin launches to run the pipeline: 'claude' (Claude Code, the default) or 'codex' (the codex CLI). Absent ⇒ 'claude' (unchanged behavior). The selected CLI must be installed and on PATH. Claude Code drives the scheduled autonomous loop via its `/loop` slash command; codex has no slash command, so Bunshin launches it once per run via `codex exec`.",
+    "kind": "claude"
+  },
+
   "board": {
     "$comment": "TRELLO provider (used when provider.kind = 'trello'). The Trello board that IS the queue (accessed via the mcp__trello__* tools). Status is encoded by which list a card lives in. ALWAYS resolve list ids by NAME at runtime (get_lists with boardId) — never hardcode list ids, they change if the board is recreated. Call set_active_board with boardId once at startup so later calls default to it.",
     "boardId": "{{BOARD_ID}}",

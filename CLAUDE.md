@@ -44,9 +44,10 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 2. **Zero runtime npm dependencies.** `src/` is plain CommonJS using only Node built-ins (`fs`,
    `path`, `child_process`). No build step — the CLI runs directly from source. Keep it this way:
    `npx github:cidfenix/bunshin` must stay instant with no install tree. This is *separate* from the
-   pipeline's **runtime prerequisites**, which are real: Claude Code + a tracker MCP (**Trello** or
-   **Jira**, per `provider.kind`) + the **Playwright MCP** (the badge says "npm deps: 0", not "needs
-   nothing").
+   pipeline's **runtime prerequisites**, which are real: an **agent CLI** (**Claude Code** default, or
+   **Codex** — selected by `agent.kind`; resolved by `resolveAgent()` in `src/util.js`) + a tracker MCP
+   (**Trello** or **Jira**, per `provider.kind`) + the **Playwright MCP** (the badge says "npm deps: 0",
+   not "needs nothing").
 
 3. **GitHub distribution, not unscoped npm.** The npm name `bunshin` is already taken, so the tool is
    run from the repo: `npx github:cidfenix/bunshin` / `npm i -g github:cidfenix/bunshin`. The package
@@ -77,11 +78,11 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 | --- | --- |
 | `bin/bunshin.js` | CLI entry: arg parsing, `--help`/`--version`, dispatch to `setup`/`init`/`run`. |
 | `src/init.js` | `init` — render `template/bunshin.config.template.json` (token substitution) → `bunshin.config.json` at the repo root. Exports `ensureConfig()` (write-if-missing), reused by `setup`. |
-| `src/setup.js` | `setup` — `ensureConfig()` then `spawn` Claude Code (a plain interactive session, no `/loop`) pointed at `template/setup.md`. `buildSetupPrompt()` is the unit-testable core. |
-| `src/run.js` | `run` — guards (git repo · config present · clean tree · `claude` on PATH), build the `/loop` prompt pointing at the package driver, `spawn` Claude Code. Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. |
+| `src/setup.js` | `setup` — `ensureConfig()` then `spawn` the selected agent CLI (`resolveAgent`/`buildSetupCommand`; a plain interactive session, no `/loop`) pointed at `template/setup.md`. `buildSetupPrompt()` is the unit-testable core. |
+| `src/run.js` | `run` — guards (git repo · config present · clean tree · agent CLI on PATH), build the prompt pointing at the package driver, `spawn` the selected agent CLI (`resolveAgent`/`buildLaunchCommand` — claude `/loop` vs `codex exec`). Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. |
 | `src/registry.js` | The shared per-user home `~/.bunshin/` that relates every running repo: `repoIdFor()`, `register()`, `markStopped()`, `readAll()`, atomic writes. Keyed by `repoId` = sha256(repo path)[:12]. |
 | `src/watch.js` | `watch` — zero-dep localhost dashboard (built-in `http`). Pure file aggregator over `~/.bunshin/` (registry + per-repo heartbeats); never calls a tracker. `buildStatusPayload()` (liveness: running/stale/stopped) is the unit-testable core. The served page has **two view modes** (header toggle, localStorage-persisted): **Pro** (status tiles) and **🥷 Bunshin** (pixel-art canvas dojos — loop ninja casts a shadow clone per goal, sub-clone per gate). `sceneFor(repo)` is the pure state→scene mapper, unit-tested in Node and inlined into the page via `.toString()` (single source of truth). |
-| `src/util.js` | Helpers: `CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`. |
+| `src/util.js` | Helpers: `CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`. |
 | `template/driver.md` | The autonomous `/loop` driver procedure (the pipeline). |
 | `template/setup.md` | The **interactive** setup guide the `setup` session follows (asks the user, fills the config, installs MCPs). |
 | `template/agents/{implement,verify,review}.md` | The three agent briefs the driver dispatches. |
@@ -140,3 +141,7 @@ in `template/driver.md` — read it before changing pipeline behaviour.
 - Themed README + banner + accurate badges in place.
 - First consumer: **GitFenix** (its `bunshin.config.json` is committed and points at this pipeline).
 - Not published to npm (name taken) — distributed via GitHub.
+- Pluggable agent runtime (`agent.kind`): **Claude Code** (default) or **Codex**. `resolveAgent()` +
+  `buildLaunchCommand()`/`buildSetupCommand()` in `src/util.js` map the kind→spawn spec; `run`/`setup`
+  launch the selected CLI (claude `/loop` vs `codex exec`). Updates the prerequisite in LOCKED decision 2
+  (was Claude-Code-only); absent ⇒ claude, so existing repos are unchanged. Unit-tested in `test/agent.test.js`.

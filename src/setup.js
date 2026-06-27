@@ -1,9 +1,26 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const { CONFIG_FILENAME, templateDir, hasExecutable } = require('./util');
+const {
+  CONFIG_FILENAME,
+  templateDir,
+  hasExecutable,
+  resolveAgent,
+  buildSetupCommand,
+} = require('./util');
 const { ensureConfig } = require('./init');
+
+// Read agent.kind from the repo config (best-effort; absent ⇒ claude).
+function readAgentKind(configPath) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    return (cfg.agent && cfg.agent.kind) || 'claude';
+  } catch {
+    return 'claude';
+  }
+}
 
 function packageSetupPath() {
   return path.join(templateDir(), 'setup.md');
@@ -24,22 +41,25 @@ function buildSetupPrompt(guidePath) {
 }
 
 async function setup(opts) {
-  const { targetRoot, wrote } = ensureConfig(opts);
+  const { targetRoot, configPath, wrote } = ensureConfig(opts);
 
-  if (!hasExecutable('claude')) {
+  // Pluggable agent runtime: Claude Code (default) or codex, per agent.kind in the config.
+  const agent = resolveAgent(readAgentKind(configPath));
+
+  if (!hasExecutable(agent.bin)) {
     throw new Error(
-      'The "claude" CLI was not found on PATH. Install Claude Code and ensure `claude` is runnable,\n' +
-        'then re-run. See https://docs.claude.com/claude-code'
+      `The "${agent.bin}" CLI was not found on PATH. Install ${agent.label} and ensure \`${agent.bin}\` is runnable,\n` +
+        `then re-run. See ${agent.docsUrl}`
     );
   }
 
   console.log(
-    `${wrote ? `Created ${CONFIG_FILENAME}. ` : `${CONFIG_FILENAME} found. `}Launching Claude Code to guide you through setup...\n`
+    `${wrote ? `Created ${CONFIG_FILENAME}. ` : `${CONFIG_FILENAME} found. `}Launching ${agent.label} to guide you through setup...\n`
   );
 
   // Plain interactive session (NOT a /loop) — the user answers questions as it goes.
   const prompt = buildSetupPrompt(packageSetupPath());
-  const command = `claude "${prompt.replace(/"/g, '\\"')}"`;
+  const command = buildSetupCommand(agent, prompt);
   const child = spawn(command, { stdio: 'inherit', shell: true, cwd: targetRoot });
   child.on('exit', (code) => {
     process.exitCode = code == null ? 0 : code;

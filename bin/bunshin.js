@@ -25,7 +25,8 @@ Commands:
             required MCP servers. (Recommended first run.)
   init      Just write a bunshin.config.json into the current repo (no prompts; the
             driver + agent briefs are served from this package at run time).
-  run       Launch the self-paced Claude Code /loop that drains the queue.
+  run       Launch the self-paced agent loop (Claude Code /loop by default, or
+            codex via agent.kind) that drains the queue.
   watch     Serve a localhost dashboard of every repo running Bunshin on this
             machine (liveness, current gate, current goal). Reads ~/.bunshin/.
 
@@ -42,7 +43,7 @@ setup / init options:
 run options:
   --interval <t>        Re-check cadence for the /loop (default: 20m).
   --once                Process exactly one goal, then stop.
-  --unattended          Pass --dangerously-skip-permissions to Claude Code (hands-off; use with care).
+  --unattended          Bypass ALL of the agent CLI's permission prompts (hands-off; use with care).
 
 watch options:
   --port <n>            Port for the dashboard (default: 4317).

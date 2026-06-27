@@ -9,6 +9,8 @@ const {
   gitRoot,
   isCleanTree,
   hasExecutable,
+  resolveAgent,
+  buildLaunchCommand,
   exists,
 } = require('./util');
 const reg = require('./registry');
@@ -29,9 +31,10 @@ function readConfigSummary(configPath) {
       tracker: tracker || null,
       baseBranch: (cfg.git && cfg.git.baseBranch) || null,
       mergeMode: (cfg.merge && cfg.merge.mode) || 'auto',
+      agentKind: (cfg.agent && cfg.agent.kind) || 'claude',
     };
   } catch {
-    return { projectName: 'project', provider: 'jira', tracker: null, baseBranch: null, mergeMode: 'auto' };
+    return { projectName: 'project', provider: 'jira', tracker: null, baseBranch: null, mergeMode: 'auto', agentKind: 'claude' };
   }
 }
 
@@ -81,18 +84,21 @@ async function run(opts) {
     );
   }
 
-  if (!hasExecutable('claude')) {
-    throw new Error(
-      'The "claude" CLI was not found on PATH. Install Claude Code and ensure `claude` is runnable,\n' +
-        'then re-run. See https://docs.claude.com/claude-code'
-    );
-  }
-
   const interval = opts.interval || '20m';
   const once = Boolean(opts.once);
   const unattended = Boolean(opts.unattended);
   const summary = readConfigSummary(configPath);
   const projectName = summary.projectName;
+
+  // Pluggable agent runtime: Claude Code (default) or codex, per agent.kind in the config.
+  const agent = resolveAgent(summary.agentKind);
+
+  if (!hasExecutable(agent.bin)) {
+    throw new Error(
+      `The "${agent.bin}" CLI was not found on PATH. Install ${agent.label} and ensure \`${agent.bin}\` is runnable,\n` +
+        `then re-run. See ${agent.docsUrl}`
+    );
+  }
 
   // Register this repo in the shared ~/.bunshin/ home so `bunshin watch` can see it, and tell
   // the driver where to heartbeat. statusFile depends only on the repo path (not the PID).
@@ -100,25 +106,22 @@ async function run(opts) {
   const statusFile = reg.statusFileFor(repoId);
 
   const prompt = buildPrompt(projectName, once, packageDriverPath(), statusFile);
-  const loopCmd = `/loop ${interval} ${prompt}`;
 
   console.log(
-    `Launching Bunshin (interval: ${interval}, once: ${once}, unattended: ${unattended})`
+    `Launching Bunshin via ${agent.label} (interval: ${interval}, once: ${once}, unattended: ${unattended})`
   );
   if (unattended) {
     console.log(
-      'WARNING: --unattended bypasses ALL Claude Code permission prompts for the whole session.\n' +
+      `WARNING: --unattended bypasses ALL ${agent.label} permission prompts for the whole session.\n` +
         '         It will run git, edit files, dispatch agents, and merge to the base branch without asking.'
     );
   }
 
-  // Pass the whole "/loop ..." string to Claude Code as a SINGLE argument (matching the
-  // original .ps1/.sh launchers). shell:true is the most portable way to resolve `claude`
-  // (a .cmd shim on Windows); the prompt contains no shell metacharacters, so a single
+  // Build the agent invocation (claude → `/loop … <prompt>`; codex → `codex exec <prompt>`)
+  // and pass it as a single shell string. shell:true is the most portable way to resolve the
+  // CLI (a .cmd shim on Windows); the prompt has no shell metacharacters, so the single
   // double-quoted argument is safe on both cmd.exe and POSIX sh.
-  const args = unattended ? ['--dangerously-skip-permissions'] : [];
-  const quoted = `"${loopCmd.replace(/"/g, '\\"')}"`;
-  const command = `claude ${args.join(' ')} ${quoted}`.replace(/\s+/g, ' ').trim();
+  const command = buildLaunchCommand(agent, { prompt, interval, unattended });
 
   const child = spawn(command, { stdio: 'inherit', shell: true, cwd: root });
 

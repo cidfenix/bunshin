@@ -57,6 +57,68 @@ function hasExecutable(name) {
   return spawnSync('sh', ['-c', `command -v ${name}`], { stdio: 'ignore' }).status === 0;
 }
 
+// --- Pluggable agent runtime --------------------------------------------------
+// Bunshin launches an agent CLI to run the pipeline. Claude Code is the default;
+// `codex` (the codex CLI) is an alternative. Everything below is pure (no spawn,
+// no fs) so it is unit-testable; run.js / setup.js consume the resolved spec.
+const AGENTS = {
+  claude: {
+    kind: 'claude',
+    bin: 'claude',
+    label: 'Claude Code',
+    docsUrl: 'https://docs.claude.com/claude-code',
+  },
+  codex: {
+    kind: 'codex',
+    bin: 'codex',
+    label: 'Codex',
+    docsUrl: 'https://github.com/openai/codex',
+  },
+};
+
+// Map a config agent.kind to its spawn spec. Absent/empty ⇒ 'claude' (preserves
+// the original behavior). Matching is case-insensitive and space-trimmed. An
+// unrecognised non-empty kind throws a clear error rather than silently guessing.
+function resolveAgent(kind) {
+  const key = String(kind == null ? '' : kind).trim().toLowerCase();
+  if (!key) return AGENTS.claude;
+  const spec = AGENTS[key];
+  if (!spec) {
+    throw new Error(
+      `Unknown agent kind "${kind}" in ${CONFIG_FILENAME} (agent.kind). ` +
+        `Use one of: ${Object.keys(AGENTS).join(', ')}.`
+    );
+  }
+  return spec;
+}
+
+function quoteArg(s) {
+  return `"${String(s).replace(/"/g, '\\"')}"`;
+}
+
+// Build the full shell command Bunshin spawns to launch the autonomous run.
+// Claude Code drives the loop via its `/loop <interval> <prompt>` slash command;
+// codex has no slash command, so it runs the prompt once via `codex exec`. The
+// unattended flag maps to each CLI's "skip all approvals" switch. The whole
+// command is passed to spawn(..., { shell: true }); the prompt is single-line so
+// collapsing runs of whitespace is safe and keeps the args tidy.
+function buildLaunchCommand(agent, { prompt, interval, unattended }) {
+  if (agent.kind === 'codex') {
+    const flags = unattended ? '--dangerously-bypass-approvals-and-sandbox ' : '';
+    return `codex exec ${flags}${quoteArg(prompt)}`.replace(/\s+/g, ' ').trim();
+  }
+  // claude (default)
+  const loopCmd = `/loop ${interval} ${prompt}`;
+  const flags = unattended ? '--dangerously-skip-permissions ' : '';
+  return `claude ${flags}${quoteArg(loopCmd)}`.replace(/\s+/g, ' ').trim();
+}
+
+// Build the command for the INTERACTIVE setup session (no /loop, no bypass): both
+// CLIs accept an initial prompt as the first positional argument.
+function buildSetupCommand(agent, prompt) {
+  return `${agent.bin} ${quoteArg(prompt)}`.replace(/\s+/g, ' ').trim();
+}
+
 function exists(p) {
   try {
     fs.accessSync(p);
@@ -101,6 +163,9 @@ module.exports = {
   gitRoot,
   isCleanTree,
   hasExecutable,
+  resolveAgent,
+  buildLaunchCommand,
+  buildSetupCommand,
   exists,
   ensureDir,
   copyFile,
