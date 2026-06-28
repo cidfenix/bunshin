@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-%2Floop-ff7a18">
+  <img alt="agent" src="https://img.shields.io/badge/agent-Claude%20Code%20%7C%20Codex-ff7a18">
   <img alt="process-only" src="https://img.shields.io/badge/orchestrator-none%20(process--only)-1b1226">
   <img alt="npm dependencies" src="https://img.shields.io/badge/npm%20deps-0-2ea043">
   <img alt="trackers" src="https://img.shields.io/badge/trackers-Trello%20%7C%20Jira-ff7a18">
-  <img alt="requires" src="https://img.shields.io/badge/requires-Claude%20Code%20%2B%20Trello%2FJira%20%2B%20Playwright%20MCP-1b1226">
+  <img alt="requires" src="https://img.shields.io/badge/requires-agent%20CLI%20%2B%20Trello%2FJira%20%2B%20Playwright%20MCP-1b1226">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -23,11 +23,12 @@
 > auto-merge — with **no human in the review loop**. You stack goals on a **Trello board or Jira
 > project**; the clones drain it.
 
-Autonomous **goal loop for Claude Code**, driven by your **Trello board or Jira project**. It is
+Autonomous **goal loop**, driven by your **Trello board or Jira project**. It is
 **process-only**: there is no
 orchestrator daemon. The package ships the markdown pipeline (a driver procedure + three agent briefs)
-and a thin CLI that drops a single per-repo config file into any repo and launches the Claude Code
-`/loop` that follows it.
+and a thin CLI that drops a single per-repo config file into any repo and launches an **agent CLI** to
+follow it — **Claude Code** (its self-paced `/loop`) by default, or **Codex** (`codex exec`), selected
+by `agent.kind`.
 
 ### Why "Bunshin"?
 
@@ -37,17 +38,56 @@ and a thin CLI that drops a single per-repo config file into any repo and launch
 
 ## Requirements
 
-- [Claude Code](https://docs.claude.com/claude-code) installed, with `claude` on your `PATH`.
+- An **agent CLI** for your `agent.kind`, installed with its binary on your `PATH`:
+  [**Claude Code**](https://docs.claude.com/claude-code) (`claude`, the default) **or**
+  [**Codex**](https://github.com/openai/codex) (`codex`). See
+  [Agent runtime](#agent-runtime--claude-code-or-codex) below; absent ⇒ Claude Code.
 - A **task-tracker MCP server** for your `provider.kind`: the **Trello MCP** (`mcp__trello__*`) or a
   **Jira MCP** (e.g. the Atlassian MCP). The driver moves goals between columns through it.
 - The **Playwright MCP server** configured (Gate 2 smoke-tests the change in a browser).
 - Node.js ≥ 18 — only to run the CLI itself, which has **zero npm dependencies** (pure Node
   built-ins, so `npx` pulls in nothing). Note this is separate from the runtime prerequisites above:
-  the **pipeline needs Claude Code + a Trello *or* Jira MCP + the Playwright MCP** to do its work.
+  the **pipeline needs your agent CLI (Claude Code *or* Codex) + a Trello *or* Jira MCP + the
+  Playwright MCP** to do its work.
 
 > The `setup` command (below) can **install the MCP servers for you** — it runs `claude mcp add` with
 > your approval and your credentials. Configuring them by hand is a one-time step too — see
 > [Setting up the MCP servers](#setting-up-the-mcp-servers) below.
+
+## Agent runtime — Claude Code or Codex
+
+The agent CLI that actually runs the pipeline is **pluggable** via the `agent.kind` field in
+`bunshin.config.json`:
+
+| `agent.kind` | CLI (binary on `PATH`) | How Bunshin launches it |
+| --- | --- | --- |
+| `claude` *(default)* | [Claude Code](https://docs.claude.com/claude-code) (`claude`) | Self-paced `/loop` slash command on the `--interval` cadence |
+| `codex` | [Codex](https://github.com/openai/codex) (`codex`) | `codex exec "<prompt>"` — **once per invocation** |
+
+Omitting the `agent` block (or `agent.kind`) keeps the original behavior — **Claude Code** — so
+existing setups are unchanged. The selected CLI must be **installed and on your `PATH`**; `run` and
+`setup` refuse to start otherwise (telling you which binary is missing).
+
+```jsonc
+{
+  "agent": {
+    "kind": "codex"   // "claude" (default) or "codex"
+  }
+}
+```
+
+**The behavioral difference matters for cadence.** Claude Code drives the queue with its own
+self-rescheduling `/loop`: `bunshin run` re-checks the board every `--interval` (default `20m`) until
+Pending is empty, all inside one session. **Codex has no `/loop`**, so Bunshin launches it just once
+per `run` via `codex exec` — it drains what it can in that single pass and then exits. To get a
+recurring cadence with Codex, pair `bunshin run` with an **external scheduler** (cron, a systemd
+timer, Task Scheduler, etc.) rather than relying on a self-rescheduling loop; `--interval` has no
+effect under Codex.
+
+The same selection applies to every command: `init` writes the `agent` block, `setup` launches the
+chosen CLI for the interactive guided setup, and `run` launches it for the autonomous loop. The
+`--unattended` flag maps to each CLI's "skip all approvals" switch — `--dangerously-skip-permissions`
+for Claude Code, `--dangerously-bypass-approvals-and-sandbox` for Codex.
 
 ## Setting up the MCP servers
 
@@ -95,10 +135,10 @@ The npm name `bunshin` is taken, so it's distributed straight from the repo — 
 npx github:cidfenix/bunshin setup
 ```
 
-Opens a **Claude Code session** that walks you through it conversationally — picks your tracker
-(Jira/Trello), connection details, merge strategy, and toolchain commands, fills in
-`bunshin.config.json`, and then **checks and installs the required MCP servers** (Trello/Jira +
-Playwright) with your approval. When it's done, commit the config and run:
+Opens an interactive **agent session** (Claude Code by default, or Codex per `agent.kind`) that walks
+you through it conversationally — picks your tracker (Jira/Trello), connection details, merge strategy,
+and toolchain commands, fills in `bunshin.config.json`, and then **checks and installs the required MCP
+servers** (Trello/Jira + Playwright) with your approval. When it's done, commit the config and run:
 
 ```bash
 git add bunshin.config.json && git commit -m "add bunshin"
@@ -137,12 +177,17 @@ every value from it. **Update the pipeline** for all your repos at once with
 ```bash
 npx github:cidfenix/bunshin run                 # self-paced /loop, drains the queue (re-checks every 20m)
 npx github:cidfenix/bunshin run --once          # process exactly one goal, then stop
-npx github:cidfenix/bunshin run --interval 30m  # different re-check cadence
-npx github:cidfenix/bunshin run --unattended    # skip Claude Code permission prompts (hands-off — careful)
+npx github:cidfenix/bunshin run --interval 30m  # different re-check cadence (Claude Code /loop only)
+npx github:cidfenix/bunshin run --unattended    # skip the agent CLI's permission prompts (hands-off — careful)
 ```
 
 `run` refuses to start if the working tree is dirty (it fast-forward-merges finished goals into the
-current tree) or if there's no `bunshin.config.json` yet.
+current tree), if there's no `bunshin.config.json` yet, or if the configured agent CLI isn't on your
+`PATH`.
+
+The cadence above is the **Claude Code `/loop`** default. With `agent.kind: "codex"`, `run` launches
+`codex exec` **once** and exits — `--interval` is ignored, so wrap `run` in an external scheduler for a
+recurring cadence (see [Agent runtime](#agent-runtime--claude-code-or-codex)).
 
 ### `watch` — one dashboard for every running repo
 

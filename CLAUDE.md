@@ -149,3 +149,6 @@ in `template/driver.md` — read it before changing pipeline behaviour.
   (vector canvas: chibi proportions, spiky hair, headband + forehead protector, scarf, jumpsuit, eyes)
   replacing the small blocky pixel sprites; bigger canvas (460×170) + new pure `dojoLayout(W,H)` geometry
   helper (exported + inlined, unit-tested in `test/watch.test.js`). `sceneFor` mapping unchanged.
+- README now documents the pluggable agent runtime (`agent.kind`: Claude Code default / Codex): new
+  "Agent runtime" section + generalized badges, Requirements, and setup/run prose (Claude `/loop` cadence
+  vs `codex exec` once-per-run needing an external scheduler). Docs only — no source/behavior changes.
