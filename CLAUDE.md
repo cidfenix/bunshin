@@ -145,3 +145,7 @@ in `template/driver.md` — read it before changing pipeline behaviour.
   `buildLaunchCommand()`/`buildSetupCommand()` in `src/util.js` map the kind→spawn spec; `run`/`setup`
   launch the selected CLI (claude `/loop` vs `codex exec`). Updates the prerequisite in LOCKED decision 2
   (was Claude-Code-only); absent ⇒ claude, so existing repos are unchanged. Unit-tested in `test/agent.test.js`.
+- 🥷 Bunshin watch view: redrew the dojo characters as **bigger, smoother anime/Naruto-style ninja**
+  (vector canvas: chibi proportions, spiky hair, headband + forehead protector, scarf, jumpsuit, eyes)
+  replacing the small blocky pixel sprites; bigger canvas (460×170) + new pure `dojoLayout(W,H)` geometry
+  helper (exported + inlined, unit-tested in `test/watch.test.js`). `sceneFor` mapping unchanged.

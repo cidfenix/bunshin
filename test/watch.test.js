@@ -169,14 +169,39 @@ test('sceneFor: tolerates missing card/queue without throwing', () => {
   assert.strictEqual(s.done, 0);
 });
 
-// --- renderPage(): both views + toggle + inlined single-source mapper ---
+// --- dojoLayout(W,H): pure canvas geometry for the bigger anime figures ---
 
-test('renderPage: serves both view roots, the toggle, and the inlined sceneFor source', () => {
+test('dojoLayout: 4 increasing gate stations, all inside the canvas', () => {
+  const L = watch.dojoLayout(440, 150);
+  assert.strictEqual(L.stations.length, 4);
+  for (let i = 1; i < L.stations.length; i++) assert.ok(L.stations[i] > L.stations[i - 1], 'monotonic');
+  L.stations.forEach((x) => assert.ok(x >= 0 && x <= 440, 'within width'));
+});
+
+test('dojoLayout: figures are big (taller than the old 33px sprite) but fit the canvas', () => {
+  const L = watch.dojoLayout(440, 150);
+  assert.ok(L.figH > 33, 'bigger than the old 11-row * 3px sprite');
+  assert.ok(L.figH < 150, 'still fits the canvas height');
+  assert.ok(L.groundY <= 150 && L.groundY > L.figH * 0.5, 'ground sits below the figure');
+});
+
+test('dojoLayout: geometry scales with canvas size', () => {
+  const small = watch.dojoLayout(300, 100);
+  const big = watch.dojoLayout(600, 200);
+  assert.ok(big.figH > small.figH, 'taller canvas => taller figure');
+  assert.ok(big.stations[3] > small.stations[3], 'wider canvas => stations spread further');
+});
+
+// --- renderPage(): both views + toggle + inlined single-source mappers ---
+
+test('renderPage: serves both view roots, the toggle, and the inlined single-source helpers', () => {
   const html = watch.renderPage();
   assert.ok(html.includes('id="view-pro"'), 'has pro view root');
   assert.ok(html.includes('id="view-nerd"'), 'has nerd view root');
   assert.ok(html.includes('bunshin.watch.view'), 'persists view choice');
   assert.ok(html.includes('function sceneFor'), 'inlines sceneFor source');
+  assert.ok(html.includes('function dojoLayout'), 'inlines dojoLayout source');
+  assert.ok(html.includes('function drawNinja'), 'inlines the anime ninja renderer');
 });
 
 console.log(`\nwatch.test.js: ${passed} passed`);

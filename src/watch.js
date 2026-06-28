@@ -210,6 +210,22 @@ function sceneFor(repo) {
   return scene;
 }
 
+// Pure canvas geometry for the 🥷 Bunshin dojo, given a canvas size. SINGLE SOURCE OF
+// TRUTH: exported for the Node tests AND inlined into the page via dojoLayout.toString(),
+// so the browser computes the exact same layout. Drives the (now much larger, anime-styled)
+// figure height and the four gate-station x positions. MUST stay self-contained.
+function dojoLayout(W, H) {
+  var groundY = Math.round(H * 0.92);
+  var figH = Math.round(H * 0.7); // big figures: most of the tile height (was ~33px)
+  var loopX = Math.round(W * 0.1); // loop ninja, far left
+  var cloneX = Math.round(W * 0.26); // its cast shadow clone
+  var first = Math.round(W * 0.46);
+  var last = W - Math.round(W * 0.07);
+  var gap = (last - first) / 3; // four stations: gate1, gate2, gate3, merge
+  var stations = [0, 1, 2, 3].map(function (i) { return Math.round(first + i * gap); });
+  return { groundY: groundY, figH: figH, loopX: loopX, cloneX: cloneX, stations: stations, gap: gap };
+}
+
 function renderPage() {
   return PAGE;
 }
@@ -263,8 +279,9 @@ const PAGE = `<!doctype html>
   .dojo { background: #141925; border: 1px solid #1d2230; border-radius: 12px; padding: 12px;
     display: flex; flex-direction: column; gap: 6px; }
   .dojo.is-blocked { border-color: #f8514955; }
-  .dojo-canvas { width: 100%; height: auto; image-rendering: pixelated;
-    background: #0b0e15; border-radius: 8px; display: block; }
+  .dojo-canvas { width: 100%; height: auto; image-rendering: auto;
+    background: radial-gradient(120% 90% at 50% 18%, #11151f 0%, #0b0e15 70%);
+    border-radius: 8px; display: block; }
   .stations { display: flex; justify-content: space-between; font-size: 10px;
     letter-spacing: .5px; color: #7d8597; padding: 0 6px; }
 </style>
@@ -283,6 +300,7 @@ const PAGE = `<!doctype html>
 <main id="view-nerd" style="display:none"></main>
 <script>
 ${sceneFor.toString()}
+${dojoLayout.toString()}
 
 const PHASES = ['gate1','gate2','gate3','merge'];
 function ago(ms){ if(ms==null) return '—'; const s=Math.round(ms/1000);
@@ -332,83 +350,232 @@ function renderPro(data){
   else { root.innerHTML = data.repos.map(cardHtml).join(''); }
 }
 
-/* ---------- Nerd view (Kage Bunshin pixel dojos) ---------- */
-const PALETTE = {
-  '.': null,
-  'K': '#0d0a12', 'b': '#241a33', 'g': '#3a2c52', 's': '#e8b58a',
-  'e': '#ffffff', 'a': '#ff7a18', 'w': '#cdd3e0', 'y': '#ffd84d',
-};
-const NINJA = [
-  '..KKKKKK..','.KKKKKKKK.','.KaaaaaaK.','.KKeKKeKK.','.KKKKKKKK.',
-  '..KbbbbK..','.KbbbbbbK.','.KbgbbgbK.','.KbbbbbbK.','..Kb..bK..','..KK..KK..',
-];
-const POOF = ['...ww....','..wwww.w.','.wwwwwww.','.wwwwwww.','..wwwww..'];
-const PROP_BOARD = ['wwwwww','wKKKKw','wKwwKw','wwwwww'];
-const PROPS = {
-  gate1: ['KKKKKK','KwKwKw'],
-  gate2: ['.ww..','w..w.','w..w.','.ww..','...KK'],
-  gate3: ['yyyyyy','yKyyKy','yyyyyy'],
-  merge: ['aa..aa','.aaaa.'],
-};
+/* ---------- 🥷 Bunshin view (anime-styled Kage Bunshin dojos) ----------
+   Figures are now drawn as smooth, detailed vector ninja (big head, spiky Naruto
+   hair, headband + forehead protector, scarf, jumpsuit) instead of coarse pixel
+   sprites — much larger and less blocky. dojoLayout() (inlined above) sizes them. */
 const GATE_KEYS = ['gate1','gate2','gate3','merge'];
 
-function drawSprite(ctx, rows, x, y, sc, alpha, tint){
-  if(!rows) return;
+// rounded rectangle path helper
+function rrect(ctx,x,y,w,h,r){
+  r=Math.min(r,Math.abs(w)/2,Math.abs(h)/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+// A soft chakra aura behind a shadow clone.
+function drawAura(ctx,cx,cy,r,col){
+  var g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+  g.addColorStop(0,col+'55'); g.addColorStop(0.6,col+'22'); g.addColorStop(1,col+'00');
+  ctx.save(); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); ctx.restore();
+}
+
+// Poof of smoke (shadow clone dispelled).
+function drawPoof(ctx,cx,cy,r,a){
+  ctx.save(); ctx.globalAlpha=a; ctx.fillStyle='#cdd3e0';
+  var p=[[0,0,1],[-0.8,0.15,0.65],[0.8,0.1,0.65],[-0.4,-0.55,0.55],[0.45,-0.5,0.55],[0,0.55,0.6]];
+  for(var i=0;i<p.length;i++){ ctx.beginPath(); ctx.arc(cx+p[i][0]*r, cy+p[i][1]*r, r*p[i][2]*0.7, 0, Math.PI*2); ctx.fill(); }
+  ctx.restore();
+}
+
+// Drowsy "z z z".
+function drawZ(ctx,x,y,sz){
+  ctx.save(); ctx.fillStyle='#7d8597'; ctx.textBaseline='alphabetic';
+  for(var z=0;z<3;z++){ ctx.globalAlpha=0.85-z*0.22; ctx.font='bold '+Math.round(sz*(1+z*0.5))+'px sans-serif';
+    ctx.fillText('z', x+z*sz*1.1, y-z*sz*1.4); }
+  ctx.restore();
+}
+
+// A little parchment scroll/clipboard the loop ninja & gate-1 clone hold.
+function drawScroll(ctx,x,y,sz){
   ctx.save();
-  if(alpha!=null) ctx.globalAlpha = alpha;
-  for(var r=0;r<rows.length;r++){
-    var row=rows[r];
-    for(var c=0;c<row.length;c++){
-      var col=PALETTE[row[c]];
-      if(!col) continue;
-      ctx.fillStyle = tint || col;
-      ctx.fillRect(x + c*sc, y + r*sc, sc, sc);
-    }
+  ctx.fillStyle='#e8d8a8'; rrect(ctx,x,y,sz*1.5,sz,sz*0.16); ctx.fill();
+  ctx.fillStyle='#c0a060'; rrect(ctx,x-sz*0.06,y,sz*0.2,sz,sz*0.08); ctx.fill();
+  rrect(ctx,x+sz*1.36,y,sz*0.2,sz,sz*0.08); ctx.fill();
+  ctx.strokeStyle='#7a5a2a'; ctx.lineWidth=Math.max(1,sz*0.07);
+  for(var i=1;i<=2;i++){ ctx.beginPath(); ctx.moveTo(x+sz*0.32,y+sz*i/3); ctx.lineTo(x+sz*1.2,y+sz*i/3); ctx.stroke(); }
+  ctx.restore();
+}
+
+// Per-gate tool glyph held by the working sub-clone.
+function drawProp(ctx, key, x, y, sz){
+  ctx.save();
+  if(key==='gate1'){ drawScroll(ctx,x,y,sz); }
+  else if(key==='gate2'){ // screen with a glowing eye (Playwright smoke)
+    ctx.fillStyle='#0b0e15'; rrect(ctx,x,y,sz*1.5,sz,sz*0.12); ctx.fill();
+    ctx.strokeStyle='#39c5cf'; ctx.lineWidth=Math.max(1,sz*0.08); rrect(ctx,x+sz*0.1,y+sz*0.12,sz*1.3,sz*0.76,sz*0.1); ctx.stroke();
+    ctx.fillStyle='#39c5cf'; ctx.beginPath(); ctx.arc(x+sz*0.75,y+sz*0.5,sz*0.22,0,Math.PI*2); ctx.fill();
+  } else if(key==='gate3'){ // approval seal/stamp
+    ctx.fillStyle='#ffd84d'; ctx.beginPath(); ctx.arc(x+sz*0.6,y+sz*0.5,sz*0.5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#0b0e15'; ctx.lineWidth=Math.max(1.5,sz*0.1); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x+sz*0.36,y+sz*0.55); ctx.lineTo(x+sz*0.55,y+sz*0.72); ctx.lineTo(x+sz*0.86,y+sz*0.3); ctx.stroke();
+  } else { // merge swirl
+    ctx.strokeStyle='#ff7a18'; ctx.lineWidth=Math.max(1.5,sz*0.14); ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(x+sz*0.6,y+sz*0.5,sz*0.42,-0.4,Math.PI*1.5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x+sz*0.6,y+sz*0.5,sz*0.18,Math.PI,Math.PI*2.6); ctx.stroke();
   }
+  ctx.restore();
+}
+
+// The star: a smooth, detailed chibi-anime ninja. cx = horizontal center, footY = ground,
+// h = total height. o: { alpha, body, accent, skin, hair, plate, line, flutter }.
+function drawNinja(ctx, cx, footY, h, o){
+  o=o||{};
+  var a=o.alpha==null?1:o.alpha;
+  var body=o.body||'#28304a';     // jumpsuit
+  var accent=o.accent||'#ff7a18'; // scarf / trim (Naruto orange by default)
+  var skin=o.skin||'#f2c79c';
+  var hair=o.hair||'#10131c';
+  var plate=o.plate||'#aab4c6';   // forehead metal protector
+  var line=o.line||'#0b0e15';
+  var flut=o.flutter||0;
+  ctx.save();
+  ctx.globalAlpha=a; ctx.lineJoin='round'; ctx.lineCap='round';
+
+  var headR=h*0.2;
+  var headCY=footY-h*0.74;
+  var shoulderY=headCY+headR*0.92;
+  var hipY=footY-h*0.3;
+  var torsoW=h*0.32;
+  var armW=h*0.09, armLen=hipY-shoulderY+h*0.03;
+
+  // ----- legs + sandals -----
+  var legW=h*0.115, legGap=h*0.025;
+  ctx.fillStyle=body;
+  rrect(ctx, cx-legGap-legW, hipY, legW, footY-hipY, legW*0.45); ctx.fill();
+  rrect(ctx, cx+legGap, hipY, legW, footY-hipY, legW*0.45); ctx.fill();
+  ctx.fillStyle=line;
+  rrect(ctx, cx-legGap-legW-h*0.01, footY-h*0.05, legW+h*0.02, h*0.055, h*0.025); ctx.fill();
+  rrect(ctx, cx+legGap-h*0.01, footY-h*0.05, legW+h*0.02, h*0.055, h*0.025); ctx.fill();
+
+  // ----- arms (behind torso) -----
+  ctx.fillStyle=body;
+  rrect(ctx, cx-torsoW/2-armW*0.55, shoulderY+h*0.03, armW, armLen, armW*0.5); ctx.fill();
+  rrect(ctx, cx+torsoW/2-armW*0.45, shoulderY+h*0.03, armW, armLen, armW*0.5); ctx.fill();
+  ctx.fillStyle=skin; // hands
+  ctx.beginPath(); ctx.arc(cx-torsoW/2-armW*0.05, shoulderY+h*0.03+armLen, armW*0.55,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+torsoW/2+armW*0.05, shoulderY+h*0.03+armLen, armW*0.55,0,Math.PI*2); ctx.fill();
+
+  // ----- torso (jumpsuit) -----
+  ctx.fillStyle=body;
+  rrect(ctx, cx-torsoW/2, shoulderY, torsoW, hipY-shoulderY+h*0.03, h*0.06); ctx.fill();
+  ctx.fillStyle=accent; // zipper stripe
+  ctx.fillRect(cx-h*0.014, shoulderY+h*0.04, h*0.028, (hipY-shoulderY)-h*0.02);
+
+  // ----- scarf + fluttering tail -----
+  ctx.fillStyle=accent;
+  rrect(ctx, cx-torsoW*0.52, shoulderY-h*0.03, torsoW*1.04, h*0.07, h*0.035); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx+torsoW*0.38, shoulderY-h*0.01);
+  ctx.quadraticCurveTo(cx+torsoW*0.8+flut, shoulderY+h*0.08, cx+torsoW*0.58+flut*0.6, shoulderY+h*0.22);
+  ctx.quadraticCurveTo(cx+torsoW*0.5, shoulderY+h*0.12, cx+torsoW*0.32, shoulderY+h*0.06);
+  ctx.closePath(); ctx.fill();
+
+  // ----- head -----
+  ctx.fillStyle=skin;
+  ctx.beginPath(); ctx.arc(cx, headCY, headR, 0, Math.PI*2); ctx.fill();
+
+  // ----- spiky hair (Naruto) -----
+  ctx.fillStyle=hair;
+  ctx.beginPath(); ctx.arc(cx, headCY-headR*0.06, headR*1.03, Math.PI*1.04, Math.PI*1.96); ctx.fill();
+  var spikes=7;
+  for(var i=0;i<spikes;i++){
+    var t=i/(spikes-1);
+    var sxx=cx-headR*0.96 + t*1.92*headR;
+    var topY=headCY-headR*0.62 - (0.55-Math.abs(0.5-t)*0.5)*headR*1.3;
+    ctx.beginPath();
+    ctx.moveTo(sxx-headR*0.2, headCY-headR*0.42);
+    ctx.lineTo(sxx, topY);
+    ctx.lineTo(sxx+headR*0.2, headCY-headR*0.42);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // ----- headband + forehead protector -----
+  var bandY=headCY-headR*0.34, bandH=headR*0.44;
+  ctx.fillStyle='#1b2740';
+  rrect(ctx, cx-headR*1.04, bandY, headR*2.08, bandH, bandH*0.28); ctx.fill();
+  ctx.fillStyle=plate;
+  rrect(ctx, cx-headR*0.58, bandY+bandH*0.14, headR*1.16, bandH*0.7, bandH*0.22); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=Math.max(1,h*0.006);
+  ctx.beginPath(); ctx.moveTo(cx-headR*0.42, bandY+bandH*0.32); ctx.lineTo(cx-headR*0.12, bandY+bandH*0.32); ctx.stroke();
+  ctx.strokeStyle=line; ctx.lineWidth=Math.max(1,h*0.009); // leaf swirl emblem
+  ctx.beginPath(); ctx.arc(cx, bandY+bandH*0.48, bandH*0.18, 0.5, Math.PI*1.7); ctx.stroke();
+
+  // ----- eyes (anime, with glints) -----
+  var eyeY=headCY+headR*0.2, eyeDx=headR*0.44, eyeR=headR*0.15;
+  ctx.fillStyle=line;
+  ctx.beginPath(); ctx.ellipse(cx-eyeDx, eyeY, eyeR*0.78, eyeR, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx+eyeDx, eyeY, eyeR*0.78, eyeR, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.9)';
+  ctx.beginPath(); ctx.arc(cx-eyeDx+eyeR*0.25, eyeY-eyeR*0.35, eyeR*0.28, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+eyeDx+eyeR*0.25, eyeY-eyeR*0.35, eyeR*0.28, 0, Math.PI*2); ctx.fill();
+
   ctx.restore();
 }
 
 function drawDojo(cv, repo, now){
   var ctx=cv.getContext('2d'); if(!ctx) return;
-  ctx.imageSmoothingEnabled=false;
-  var W=cv.width, H=cv.height, sc=3;
+  ctx.imageSmoothingEnabled=true;
+  var W=cv.width, H=cv.height;
+  var L=dojoLayout(W,H);
   var s=sceneFor(repo);
   ctx.clearRect(0,0,W,H);
   if(s.blocked){ ctx.fillStyle='#2a1416'; ctx.fillRect(0,0,W,H); }
-  ctx.fillStyle='#1d2230'; ctx.fillRect(0,H-6,W,2);            // ground line
-  var bob=Math.round(Math.sin(now/300)*2);
-  var fast=Math.round(Math.sin(now/110)*2);
-  var nh=NINJA.length*sc, nw=NINJA[0].length*sc, baseY=H-8-nh, lx=8;
-  // loop ninja (original)
-  if(s.loopPose==='gone'){
-    drawSprite(ctx, POOF, lx, baseY+10, sc, 0.35);
-  } else if(s.loopPose==='sleep'){
-    drawSprite(ctx, NINJA, lx, baseY+4, sc, 0.6);
-    ctx.fillStyle='#7d8597';
-    for(var z=0;z<3;z++) ctx.fillRect(lx+nw+z*4, baseY+2-z*4, 2, 2);   // zzz
-  } else {
-    drawSprite(ctx, NINJA, lx, baseY+bob, sc, 1);
-    if(s.loopPose==='check') drawSprite(ctx, PROP_BOARD, lx+nw+2, baseY+bob+8, sc, 1);
-  }
-  // gate-station platforms
-  var startX=86, span=W-startX-12, gap=span/4;
+  // ground line
+  ctx.fillStyle='#1d2230'; ctx.fillRect(0,L.groundY,W,Math.max(2,H*0.013));
+
+  var bob=Math.sin(now/350)*(H*0.018);
+  var fast=Math.sin(now/120)*(H*0.02);
+  var flut=Math.sin(now/220)*(H*0.05);
+
+  // gate-station platforms (+ done ticks)
+  var pw=L.gap*0.62;
   for(var i=0;i<4;i++){
-    var sx=startX+i*gap, passed=s.goalActive && i<s.station;
-    ctx.fillStyle = passed ? '#2f81f7' : (s.goalActive && i===s.station ? '#3a2c52' : '#232a3a');
-    ctx.fillRect(sx, H-7, gap-12, 3);
-    if(passed){ ctx.fillStyle='#3fb950'; ctx.fillRect(sx+(gap-12)/2-2, H-13, 4, 4); }   // done tick
+    var sx=L.stations[i];
+    var passed=s.goalActive && i<s.station;
+    var current=s.goalActive && i===s.station;
+    ctx.fillStyle = passed ? '#2f81f7' : (current ? '#3a2c52' : '#232a3a');
+    rrect(ctx, sx-pw/2, L.groundY-H*0.02, pw, H*0.035, H*0.015); ctx.fill();
+    if(passed){ ctx.fillStyle='#3fb950'; ctx.beginPath(); ctx.arc(sx, L.groundY-H*0.07, H*0.022, 0, Math.PI*2); ctx.fill(); }
   }
-  // goal-clone + active-gate sub-clone (shadow clones: translucent + cool aura)
+
+  // ----- loop ninja (far left, full colour) -----
+  if(s.loopPose==='gone'){
+    drawPoof(ctx, L.loopX, L.groundY-L.figH*0.4, H*0.2, 0.45);
+  } else if(s.loopPose==='sleep'){
+    drawNinja(ctx, L.loopX, L.groundY, L.figH*0.92, { alpha:0.6, flutter:flut*0.3 });
+    drawZ(ctx, L.loopX+L.figH*0.28, L.groundY-L.figH*0.82, H*0.05);
+  } else {
+    drawNinja(ctx, L.loopX, L.groundY+bob, L.figH, { alpha:1, flutter:flut });
+    if(s.loopPose==='check') drawScroll(ctx, L.loopX+L.figH*0.18, L.groundY+bob-L.figH*0.3, H*0.12);
+  }
+
+  // ----- cast shadow clone + active-gate sub-clone (translucent, cyan chakra) -----
   if(s.goalActive){
-    var cx=44;
-    drawSprite(ctx, NINJA, cx+2, baseY+bob, sc, 0.22, '#39c5cf');
-    drawSprite(ctx, NINJA, cx, baseY+bob, sc, 0.55);
+    drawAura(ctx, L.cloneX, L.groundY-L.figH*0.42, L.figH*0.52, '#39c5cf');
+    drawNinja(ctx, L.cloneX, L.groundY+bob, L.figH*0.96,
+      { alpha:0.62, body:'#26344e', accent:'#39c5cf', hair:'#16243a', flutter:flut });
+
     if(s.station>=0){
-      var stX=startX+s.station*gap+2, subY=baseY+(s.blocked?6:fast);
-      drawSprite(ctx, NINJA, stX+2, subY, sc, 0.2, '#39c5cf');
-      drawSprite(ctx, NINJA, stX, subY, sc, s.blocked?0.5:0.6, s.blocked?'#f85149':null);
-      if(s.blocked){ ctx.fillStyle='#f85149'; ctx.fillRect(stX+nw, subY, 3, 3); ctx.fillRect(stX+nw, subY+6, 3, 3); }
-      else { var prop=PROPS[GATE_KEYS[s.station]]; if(prop) drawSprite(ctx, prop, stX+nw, subY+nh-10, sc, 0.95); }
+      var stX=L.stations[s.station];
+      var subY=L.groundY+(s.blocked?0:fast);
+      if(s.blocked){
+        drawNinja(ctx, stX, subY, L.figH*0.82,
+          { alpha:0.9, body:'#3a1c22', accent:'#f85149', hair:'#2a1014', plate:'#caa6a6', flutter:0 });
+        ctx.save(); ctx.fillStyle='#f85149'; ctx.textBaseline='alphabetic';
+        ctx.font='bold '+Math.round(H*0.17)+'px sans-serif';
+        ctx.fillText('!', stX+L.figH*0.2, subY-L.figH*0.5); ctx.restore();
+      } else {
+        drawAura(ctx, stX, L.groundY-L.figH*0.38, L.figH*0.46, '#39c5cf');
+        drawNinja(ctx, stX, subY, L.figH*0.84,
+          { alpha:0.72, body:'#26344e', accent:'#39c5cf', hair:'#16243a', flutter:fast });
+        drawProp(ctx, GATE_KEYS[s.station], stX+L.figH*0.16, subY-L.figH*0.34, H*0.12);
+      }
     }
   }
 }
@@ -420,7 +587,7 @@ function dojoHtml(r){
     + '<div class="row"><span id="dj-dot-'+r.repoId+'" class="dot '+r.liveness+'"></span>'
       + '<span class="name">'+esc(r.projectName||r.repoPath)+'</span>'
       + '<span class="live-label">'+r.liveness+'</span></div>'
-    + '<canvas class="dojo-canvas" data-repo="'+r.repoId+'" width="320" height="88"></canvas>'
+    + '<canvas class="dojo-canvas" data-repo="'+r.repoId+'" width="460" height="170"></canvas>'
     + '<div class="stations"><span>Gate1</span><span>Gate2</span><span>Gate3</span><span>Merge</span></div>'
     + '<div class="card-title" id="dj-title-'+r.repoId+'"></div>'
     + '<div class="queue" id="dj-queue-'+r.repoId+'"></div>'
@@ -490,4 +657,4 @@ tick(); setInterval(tick, 3000);
 </body>
 </html>`;
 
-module.exports = { watch, buildStatusPayload, createServer, defaultIsPidAlive, renderPage, sceneFor, DEFAULT_PORT };
+module.exports = { watch, buildStatusPayload, createServer, defaultIsPidAlive, renderPage, sceneFor, dojoLayout, DEFAULT_PORT };
