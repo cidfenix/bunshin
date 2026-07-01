@@ -6,7 +6,7 @@
     "bunshin": "bin/bunshin.js"
   },
   "scripts": {
-    "test": "node test/registry.test.js && node test/watch.test.js && node test/run.test.js && node test/agent.test.js && node test/gates.test.js && node test/gates-layout.test.js && node test/openpr.test.js && node test/commit.test.js && node test/orchestrator.test.js && node test/server.smoke.js"
+    "test": "node test/registry.test.js && node test/watch.test.js && node test/run.test.js && node test/agent.test.js && node test/gates.test.js && node test/gates-layout.test.js && node test/openpr.test.js && node test/prlabels.test.js && node test/commit.test.js && node test/orchestrator.test.js && node test/server.smoke.js"
   },
   "type": "commonjs",
   "files": [

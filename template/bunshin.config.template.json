@@ -64,8 +64,10 @@
       "skill": "",
       "command": ""
     },
+    "prLabels": [],
+    "prLabelsNote": "OPTIONAL (mode='pr' only). An ARRAY of label names Bunshin STAMPS onto every PR it opens (e.g. [\"bunshin\", \"automated\"]), so humans can filter agent-created PRs out of their review queue (e.g. a GitHub search `-label:bunshin`). Absent/empty [] ⇒ no labels added (unchanged behavior). NOTE: this is a STAMP, and is DIFFERENT from merge.autoMerge.label below — that one is a merge GATE the reaper REQUIRES on a PR before it auto-merges; this one just tags PRs for filtering and never affects merging. For the default `gh pr create` path each label becomes `--label <l>` (the label must already exist on the repo, or gh errors — create them once with `gh label create`); a custom merge.openPr skill/command is responsible for applying them itself.",
     "autoMerge": {
-      "$comment": "When mode='pr', an open PR auto-merges once ALL the gates you set here pass. Disable a gate with its neutral value: approvals 0, label \"\". With BOTH disabled (approvals 0 AND label \"\"), Bunshin opens the PR but NEVER auto-merges — a human merges on GitHub and the reaper just moves the card to Done once it sees the merge.",
+      "$comment": "When mode='pr', an open PR auto-merges once ALL the gates you set here pass. Disable a gate with its neutral value: approvals 0, label \"\". With BOTH disabled (approvals 0 AND label \"\"), Bunshin opens the PR but NEVER auto-merges — a human merges on GitHub and the reaper just moves the card to Done once it sees the merge. NOTE: autoMerge.label is a merge GATE (required before auto-merge), NOT the same as merge.prLabels above (labels merely STAMPED on opened PRs for filtering).",
       "approvals": 1,
       "label": "",
       "requireChecksGreen": true

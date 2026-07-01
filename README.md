@@ -296,7 +296,11 @@ drop `verify`, or splice in custom steps via `gates.steps`
      remote + the `gh` CLI or a GitHub MCP. The PR-open step is **pluggable** (`merge.openPr`): by
      default Bunshin runs `gh pr create --fill`, but you can point it at your own flow — a custom
      `/open-pr` slash command / skill (`{ "skill": "/open-pr" }`) or a shell command
-     (`{ "command": "..." }`) that applies your PR template and prints the PR URL.
+     (`{ "command": "..." }`) that applies your PR template and prints the PR URL. You can also
+     **stamp labels on every PR Bunshin opens** with `merge.prLabels` (e.g. `["bunshin", "automated"]`)
+     so humans can filter agent-created PRs out of their review queue (each becomes a `gh --label`; the
+     label must already exist on the repo). This is a *filter* stamp — distinct from
+     `merge.autoMerge.label`, which is a merge *gate* the reaper requires before auto-merging.
 
    Any gate failure → **Blocked** with the reason (branch kept).
 

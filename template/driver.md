@@ -310,10 +310,20 @@ Needs a git remote (`merge.remote`, default `origin`) and GitHub access — an a
      shell command — set EITHER, not both; blank/absent ⇒ default), open the PR by invoking that
      skill/command instead. It applies the user's own PR flow/template and is given the branch, the base
      branch (`<git.baseBranch>`), and the goal context. It is RESPONSIBLE for creating the PR AND for
-     printing/returning the PR URL — capture that URL for step 4. If it fails (non-zero exit / no URL) →
+     printing/returning the PR URL — capture that URL for step 4, AND for applying any `merge.prLabels`
+     to the PR itself (pass the label list along). If it fails (non-zero exit / no URL) →
      PARK `Open-PR step failed — <short error>`.
    - **Otherwise (default):** `gh pr create --base <git.baseBranch> --head <branch> --fill` (or the
      GitHub MCP). Title + body from the goal text and the implement agent's summary.
+   - **PR labels (`merge.prLabels`, applies to BOTH paths):** if `merge.prLabels` is a non-empty array,
+     STAMP each label onto the opened PR so humans can filter agent-created PRs out (e.g. exclude
+     `-label:bunshin` from a review queue). For the default `gh pr create` path add one `--label <l>`
+     per label (e.g. `... --fill --label bunshin --label automated`); with the GitHub MCP, set the same
+     labels on the PR. `gh` requires each label to ALREADY EXIST on the repo, else it errors — create
+     them once with `gh label create <l>` (or ignore/PARK on the error, your call, but do not silently
+     drop labels). Absent/empty `merge.prLabels` ⇒ add no labels (unchanged behavior). **This is a
+     STAMP for filtering — do NOT confuse it with `merge.autoMerge.label`, which is a merge GATE the
+     reaper requires before auto-merging (below); they are independent.**
 4. Transition the issue **→ In Review**, comment `PR: <url>`. Remove the worktree (the branch now lives
    on the remote) — the remote branch + PR persist. **Do NOT merge here**; the reaper does, once the
    `merge.autoMerge` gate is met.

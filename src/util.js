@@ -278,6 +278,41 @@ function resolveCommit(config) {
   return resolveSkillOrCommand(commit, 'commit');
 }
 
+// --- Configurable PR labels (PR mode) ----------------------------------------
+// In `merge.mode: "pr"` a team often wants to FILTER OUT the PRs Bunshin opens (e.g. exclude
+// them from a human review queue). `merge.prLabels` is an OPTIONAL list of label strings that
+// the driver STAMPS onto every PR it opens. This is a STAMP for filtering — NOT to be confused
+// with `merge.autoMerge.label`, which is a merge GATE the reaper REQUIRES on a PR before it
+// auto-merges. Keep them distinct. `resolvePrLabels` is pure (no fs/spawn) so it is unit-testable;
+// the driver reads the same `merge.prLabels` list. Absent / null / [] / all-blank ⇒ [] (no labels
+// added — today's behavior). Normalizes: trims each entry, drops empties, de-dupes (first wins).
+// A non-array value, or a non-string entry, throws a clear `merge.prLabels`-referencing error.
+function resolvePrLabels(config) {
+  const raw = config && config.merge && config.merge.prLabels;
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) {
+    throw new Error(
+      `Invalid merge.prLabels in ${CONFIG_FILENAME}: expected an array of label strings ` +
+        `(e.g. ["bunshin", "automated"]), got ${typeof raw}.`
+    );
+  }
+  const out = [];
+  const seen = new Set();
+  raw.forEach((entry, index) => {
+    if (typeof entry !== 'string') {
+      throw new Error(
+        `Invalid merge.prLabels[${index}] in ${CONFIG_FILENAME}: expected a label string, ` +
+          `got ${entry === null ? 'null' : Array.isArray(entry) ? 'array' : typeof entry}.`
+      );
+    }
+    const label = entry.trim();
+    if (!label || seen.has(label)) return;
+    seen.add(label);
+    out.push(label);
+  });
+  return out;
+}
+
 // --- Orchestrator repositories -----------------------------------------------
 // In orchestrator mode one board's goals span MANY repositories, listed under
 // `repositories` in the orchestrator config. `resolveRepositories` validates and
@@ -428,6 +463,7 @@ module.exports = {
   DEFAULT_GATE_STEPS,
   resolveGates,
   resolveOpenPr,
+  resolvePrLabels,
   resolveCommit,
   resolveRepositories,
   resolveRepoGates,
