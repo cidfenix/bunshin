@@ -13,8 +13,9 @@ repos, or mix in custom `command`/`skill` steps. See **GATES (the configurable p
 is `bunshin.config.json` at that repo's root. In **orchestrator** mode (launched with
 `bunshin run --orchestrator`) ONE board's goals span **multiple repositories**: the config is
 **`bunshin.orchestrator.json`** in the current folder, it lists the target `repositories` (git remote +
-local path + an optional triage `description`), and its `gates.steps` lead with the **`triage`** gate —
-which decides *which* repository each goal belongs to before anything is built. The launch prompt tells
+local path + an optional triage `description`, plus **optional per-repo `gates`/`commands` overrides**),
+and its top-level `gates.steps` lead with the **`triage`** gate — which decides *which* repository each
+goal belongs to before anything is built, and each repo can then run its OWN gate pipeline. The launch prompt tells
 you which mode and which config file to read. Everything below is written for single-repo mode; the
 **ORCHESTRATOR MODE** notes call out the differences (the config file, the `triage` gate, and that the
 worktree/merge target is the *triaged* repository, not the current folder).
@@ -104,7 +105,10 @@ constraint.)
 5. Run the **configured gates in order, fail-fast** (see **GATES (the configurable pipeline)** below):
    read `gates.steps` from the config (absent/empty ⇒ the default `["implement", "verify", "review"]`)
    and run each resolved step in sequence, stopping at the FIRST failure. In orchestrator mode the
-   first step is `triage` — resolve the target repo (step 4's note) before cutting the worktree.
+   first step is `triage` — resolve the target repo (step 4's note) before cutting the worktree, then run
+   **that repo's effective gates**: its own `gates.steps` if the `repositories[]` entry defines them, else
+   the orchestrator-global `gates.steps` (the per-repo list omits `triage`, which already ran). Likewise
+   read every `commands.*` the gates use from that repo's `commands` merged over the global.
 6. If ALL gates pass → **INTEGRATE** (below — behaviour depends on `merge.mode`):
    - `auto`: local fast-forward merge, then transition the issue **→ Done** and comment
      `merged: <merge-sha>`.
@@ -170,6 +174,19 @@ Each step in `gates.steps` is EITHER a **built-in gate** (a string name, or `{"g
 **custom step** (`{"command": "<shell>"}` or `{"skill": "<name>"}`). An optional `name` on an object
 step is a human label (used in reasons/heartbeats). An unknown built-in name, or an object with none of
 `gate`/`command`/`skill`, is a config error — report it rather than guessing.
+
+- **ORCHESTRATOR MODE — per-repo gates & commands.** In orchestrator mode the config's top-level
+  `gates`/`commands` are the **defaults**, but each `repositories[]` entry MAY carry its OWN optional
+  `gates` (`{"steps": [...]}`) and/or `commands` block that **override** the global for that repo only —
+  heterogeneous repos (a web app vs a config-only CLI vs an Android app) need different pipelines and
+  toolchains. Once `triage` (step 5, run first) has picked the target repository, resolve the gates and
+  commands **for that repo**: use its own `gates.steps` if present, else the orchestrator-global
+  `gates.steps`, else the default `["implement", "verify", "review"]`; and shallow-merge its own
+  `commands` over the global `commands` (repo keys win) for every `commands.*` the gates reference
+  (`install`, `gateChecks`, `devServer`, …). A per-repo list runs the gates that come **after** triage —
+  do NOT repeat `triage` in it (triage already ran from the global list, before the worktree). An unknown
+  gate in a per-repo list is a config error naming that repository. (In single-repo mode there is no
+  `repositories[]`, so this note does not apply — the config's own `gates`/`commands` are used as-is.)
 
 ### Built-in gate `triage` — pick the target repository — ORCHESTRATOR-ONLY
 - Follow the preset **`gates/triage.md`** (beside this driver). Used **only in orchestrator mode**

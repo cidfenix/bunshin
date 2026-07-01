@@ -145,13 +145,15 @@ const BUILTIN_GATES = Object.freeze(['triage', 'implement', 'verify', 'review', 
 // Absent/empty ⇒ this default, so existing (single-repo) repos are unchanged.
 const DEFAULT_GATE_STEPS = Object.freeze(['implement', 'verify', 'review']);
 
-function normalizeGateStep(entry, index) {
-  const where = `gates.steps[${index}]`;
+function normalizeGateStep(entry, index, ctx) {
+  const label = (ctx && ctx.where) || 'gates.steps';
+  const configFile = (ctx && ctx.configFile) || CONFIG_FILENAME;
+  const where = `${label}[${index}]`;
   const assertBuiltin = (name, original) => {
     const key = String(name).trim().toLowerCase();
     if (!BUILTIN_GATES.includes(key)) {
       throw new Error(
-        `Unknown built-in gate "${original}" at ${where} in ${CONFIG_FILENAME}. ` +
+        `Unknown built-in gate "${original}" at ${where} in ${configFile}. ` +
           `Built-in gates are: ${BUILTIN_GATES.join(', ')}. ` +
           `For a custom step use an object: {"command": "..."} or {"skill": "..."}.`
       );
@@ -175,22 +177,28 @@ function normalizeGateStep(entry, index) {
       return { type: 'skill', skill: entry.skill, name: entry.name ? String(entry.name) : entry.skill };
     }
     throw new Error(
-      `Invalid gate step at ${where} in ${CONFIG_FILENAME}: an object step must have a ` +
+      `Invalid gate step at ${where} in ${configFile}: an object step must have a ` +
         `"gate" (built-in), "command" (shell), or "skill" (agent skill) key.`
     );
   }
   throw new Error(
-    `Invalid gate step at ${where} in ${CONFIG_FILENAME}: expected a built-in gate name ` +
+    `Invalid gate step at ${where} in ${configFile}: expected a built-in gate name ` +
       `(string) or a custom step object, got ${entry === null ? 'null' : typeof entry}.`
   );
 }
 
-// Resolve config.gates.steps into an ordered, normalized list of gate steps.
+// Resolve a `gates` block (`{ steps: [...] }`) into an ordered, normalized list of gate steps.
 // Absent / empty ⇒ DEFAULT_GATE_STEPS (implement→verify→review, unchanged behavior).
-function resolveGates(config) {
+// `opts` lets callers point error messages at a different location/file — e.g. a per-repo
+// override in the orchestrator config (see resolveRepoGates): { where, configFile }.
+function resolveGates(config, opts) {
   const raw = config && config.gates && config.gates.steps;
   const steps = Array.isArray(raw) && raw.length ? raw : DEFAULT_GATE_STEPS;
-  return steps.map(normalizeGateStep);
+  const ctx = {
+    where: (opts && opts.where) || 'gates.steps',
+    configFile: (opts && opts.configFile) || CONFIG_FILENAME,
+  };
+  return steps.map((entry, index) => normalizeGateStep(entry, index, ctx));
 }
 
 // --- Orchestrator repositories -----------------------------------------------
@@ -198,8 +206,11 @@ function resolveGates(config) {
 // `repositories` in the orchestrator config. `resolveRepositories` validates and
 // normalizes that array (pure, no fs) so run.js can guard on a bad config early and
 // the driver's `triage` gate has a clean candidate set. Each normalized entry:
-//   { id, name, remote|null, path|null, baseBranch|null, description }
+//   { id, name, remote|null, path|null, baseBranch|null, description, gates|null, commands|null }
 // A repo needs a unique `id` and at least a `remote` (git URL) or a `path` (local checkout).
+// `gates`/`commands` are OPTIONAL per-repo overrides carried through raw (a repo can define its
+// OWN gate pipeline / command set — heterogeneous repos need different toolchains); they are
+// resolved on demand by resolveRepoGates / resolveRepoCommands, not here.
 function resolveRepositories(config) {
   const raw = config && config.repositories;
   if (!Array.isArray(raw) || raw.length === 0) {
@@ -234,6 +245,9 @@ function resolveRepositories(config) {
           `"remote" (git URL) or a "path" (local checkout).`
       );
     }
+    const gates = entry.gates && typeof entry.gates === 'object' && !Array.isArray(entry.gates) ? entry.gates : null;
+    const commands =
+      entry.commands && typeof entry.commands === 'object' && !Array.isArray(entry.commands) ? entry.commands : null;
     return {
       id,
       name: entry.name ? String(entry.name) : id,
@@ -241,8 +255,48 @@ function resolveRepositories(config) {
       path: localPath || null,
       baseBranch: entry.baseBranch ? String(entry.baseBranch) : null,
       description: entry.description ? String(entry.description) : '',
+      gates,
+      commands,
     };
   });
+}
+
+// --- Per-repo gate / command overrides (orchestrator mode) -------------------
+// Heterogeneous repos (a web app vs a config-only CLI vs an Android app) need DIFFERENT
+// gate pipelines and build/test commands. In orchestrator mode each `repositories[]` entry
+// may carry its OWN optional `gates` (`{ steps: [...] }`) and/or `commands` block, overriding
+// the orchestrator-global default. These pure resolvers return the EFFECTIVE values for the
+// repo the `triage` gate picked. `repo` is a normalized entry (from resolveRepositories) or a
+// raw repositories entry — either way its `gates`/`commands` fields are honoured.
+
+// Effective ordered gate list for a repo: the repo's OWN `gates.steps` if present, else the
+// orchestrator-global `gates.steps`, else DEFAULT_GATE_STEPS. Reuses resolveGates so custom
+// `command`/`skill` steps and all built-ins work per-repo too; an unknown gate throws with a
+// message identifying WHICH repository (so a bad override is easy to trace).
+function resolveRepoGates(orchestratorConfig, repo) {
+  const ownSteps = repo && repo.gates && repo.gates.steps;
+  if (Array.isArray(ownSteps) && ownSteps.length) {
+    const id = repo && repo.id != null ? String(repo.id) : '?';
+    return resolveGates(
+      { gates: repo.gates },
+      { where: `repositories["${id}"].gates.steps`, configFile: ORCHESTRATOR_CONFIG_FILENAME }
+    );
+  }
+  // Fall back to the orchestrator-global gates (resolveGates itself falls back to
+  // DEFAULT_GATE_STEPS when the global block is absent/empty too).
+  return resolveGates(orchestratorConfig, { configFile: ORCHESTRATOR_CONFIG_FILENAME });
+}
+
+// Effective command map for a repo: the orchestrator-global `commands`, shallow-merged with the
+// repo's OWN `commands` (repo keys win). So a repo can override just `gateChecks`/`install`/
+// `devServer` while inheriting the rest. Both blocks absent ⇒ {}.
+function resolveRepoCommands(orchestratorConfig, repo) {
+  const global =
+    orchestratorConfig && orchestratorConfig.commands && typeof orchestratorConfig.commands === 'object' && !Array.isArray(orchestratorConfig.commands)
+      ? orchestratorConfig.commands
+      : {};
+  const own = repo && repo.commands && typeof repo.commands === 'object' && !Array.isArray(repo.commands) ? repo.commands : {};
+  return { ...global, ...own };
 }
 
 function exists(p) {
@@ -297,6 +351,8 @@ module.exports = {
   DEFAULT_GATE_STEPS,
   resolveGates,
   resolveRepositories,
+  resolveRepoGates,
+  resolveRepoCommands,
   exists,
   ensureDir,
   copyFile,

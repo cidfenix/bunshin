@@ -32,10 +32,19 @@
       "remote": "git@github.com:acme/api.git",
       "path": "../acme-api",
       "baseBranch": "main",
-      "description": "Backend REST/GraphQL service: endpoints, database, auth, background jobs."
+      "description": "Backend REST/GraphQL service: endpoints, database, auth, background jobs.",
+      "gates": {
+        "$comment": "OPTIONAL per-repo gate pipeline — OVERRIDES the orchestrator-global `gates` below for THIS repo only. Same shape as the top-level `gates` ({ steps: [...] }). Heterogeneous repos need different gates: this backend has no browser UI, so it drops the web-only `verify` gate. Do NOT repeat `triage` here — triage runs from the GLOBAL list before the worktree is cut; a repo's own list is only the gates that run AFTER triage picks it. Absent ⇒ this repo uses the global gates.",
+        "steps": ["implement", "review"]
+      },
+      "commands": {
+        "$comment": "OPTIONAL per-repo command overrides — shallow-merged over the global `commands` below (repo keys win; unset keys inherit the global). Lets each repo use its OWN toolchain instead of a lowest-common-denominator. Example: this repo installs/tests differently from the web app.",
+        "install": "pip install -r requirements.txt",
+        "gateChecks": "pytest -q"
+      }
     }
   ],
-  "repositoriesNote": "The repositories this orchestrator drives (replace the two examples). Each entry: `id` (short UNIQUE slug — used in branches/reports), `name` (human label; defaults to id), `remote` (git URL — the clone target when `path` is missing), `path` (local checkout, relative to this file or absolute), optional `baseBranch` (defaults to git.baseBranch below), optional `description` (a TRIAGE hint). A repo needs at least a `remote` OR a `path`. TRIAGE reads the goal text against each repo's `description` here PLUS its CLAUDE.md/README at `path`; when it cannot confidently pick one, the goal is moved to Blocked with a comment about the missing info (it never guesses).",
+  "repositoriesNote": "The repositories this orchestrator drives (replace the two examples). Each entry: `id` (short UNIQUE slug — used in branches/reports), `name` (human label; defaults to id), `remote` (git URL — the clone target when `path` is missing), `path` (local checkout, relative to this file or absolute), optional `baseBranch` (defaults to git.baseBranch below), optional `description` (a TRIAGE hint), optional `gates` (a PER-REPO gate pipeline — same `{ steps: [...] }` shape as the top-level `gates`; overrides the global for THIS repo, e.g. drop the web-only `verify` gate for a CLI/backend repo — do NOT include `triage`, which runs from the global list before triage picks the repo), optional `commands` (PER-REPO command overrides, shallow-merged over the global `commands`; repo keys win). A repo needs at least a `remote` OR a `path`. TRIAGE reads the goal text against each repo's `description` here PLUS its CLAUDE.md/README at `path`; when it cannot confidently pick one, the goal is moved to Blocked with a comment about the missing info (it never guesses). Per-repo `gates`/`commands` are the RECOMMENDED way to run heterogeneous toolchains under ONE orchestrator (instead of the old lowest-common-denominator workaround).",
 
   "board": {
     "$comment": "TRELLO provider (provider.kind = 'trello'). The board that IS the queue for ALL repositories. Resolve list ids by NAME at runtime; call set_active_board once at startup.",
@@ -89,7 +98,7 @@
   },
 
   "gates": {
-    "$comment": "The ORDERED gate pipeline the driver runs for each goal. In ORCHESTRATOR mode, keep `triage` FIRST — it decides which repository the goal belongs to before anything is cut/built; a goal it cannot place is moved to Blocked. The rest of the pipeline is the usual per-repo preset (drop the web-only `verify` gate for non-web repos, add custom command/skill steps, etc.). Absent/empty steps ⇒ the single-repo default [\"implement\", \"verify\", \"review\"] (no triage) — so ALWAYS set steps here for orchestrator mode.",
+    "$comment": "The DEFAULT ordered gate pipeline the driver runs for each goal — applied to any repository that does NOT define its own `gates` block above. In ORCHESTRATOR mode, keep `triage` FIRST — it decides which repository the goal belongs to before anything is cut/built; a goal it cannot place is moved to Blocked. The rest of the pipeline is the usual preset (drop the web-only `verify` gate for non-web repos, add custom command/skill steps, etc.). A repository entry can OVERRIDE this whole list with its own `gates` (its steps run AFTER triage picks it — don't repeat `triage` there). Absent/empty steps ⇒ the built-in default [\"implement\", \"verify\", \"review\"] (no triage) — so ALWAYS set steps here for orchestrator mode.",
     "stepsNote": "Built-in gates: \"triage\" = pick the target repository from the goal text + each repo's description/CLAUDE.md/README (orchestrator-only; PARK/Blocked if undecidable); \"implement\" = code it TDD-style + commands.install & commands.gateChecks; \"verify\" = Playwright behavioral smoke (WEB-ONLY); \"review\" = fresh adversarial APPROVE/BLOCK. Custom steps: {\"command\":\"<shell>\",\"name\":\"...\"} (non-zero exit ⇒ Blocked) or {\"skill\":\"<name>\",\"name\":\"...\"} — e.g. supply your OWN triage gate as a {\"skill\":\"...\"} step in place of the built-in. Steps run in array order, fail-fast.",
     "steps": ["triage", "implement", "verify", "review"]
   },
@@ -97,7 +106,7 @@
   "artifactsDir": ".bunshin/artifacts",
 
   "commands": {
-    "$comment": "Per-project shell commands the gates run inside the chosen repository's worktree. When repositories use DIFFERENT toolchains, set the LOWEST-common-denominator here and rely on each repo's CLAUDE.md to tell the agents how to build/test; or run heterogeneous repos under separate orchestrators. REPLACE these for your toolchain.",
+    "$comment": "DEFAULT shell commands the gates run inside the chosen repository's worktree — used by any repository that does NOT define its own `commands` block above. When repositories use DIFFERENT toolchains, give each one a PER-REPO `commands` override (recommended) rather than a lowest-common-denominator here; the repo's keys are shallow-merged over these. REPLACE these for your default toolchain.",
     "install": "",
     "installNote": "Dependency install for the target repo (empty if none / a zero-dep repo). For pnpm keep --frozen-lockfile --ignore-scripts (see the single-repo template's installNote for why).",
     "gateChecks": "npm test",
