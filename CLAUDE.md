@@ -196,6 +196,15 @@ behaviour.
   description/CLAUDE.md/README; undecidable ⇒ Blocked with a comment) + a dedicated-vs-orchestrator note in
   `template/setup.md`. Extends LOCKED decisions 1 (config-per-role) & 4 (triage gate). Tests:
   `test/orchestrator.test.js` (+ run/gates coverage), wired into `npm test`.
+- README refreshed for gates + orchestrator (BUN-9): documented the configurable gate pipeline (new
+  "Gate pipeline — configurable per repo" section with a `gates.steps` example incl. dropping `verify` +
+  a custom `command` step, and the `template/gates/` preset layout) and orchestrator mode (new
+  "Orchestrator mode — one board, many repositories" section: `--orchestrator` on init/setup/run, the
+  `bunshin.orchestrator.json` config + `repositories[]`, the triage gate). Fixed now-inaccurate prose
+  (three-gate/agent-briefs wording, Playwright now only for the `verify` gate, `run --orchestrator`
+  clean-tree note). Docs only — no source/behavior changes; extended `test/gates-layout.test.js` with a
+  README consistency guard (mentions `gates.steps` + `--orchestrator`, names `bunshin.orchestrator.json`,
+  no stale `template/agents/` path).
 - Gate presets extracted to `template/gates/` (BUN-8): moved the `implement`/`verify`/`review` briefs out
   of `template/agents/` (folder removed) and added a self-contained `triage.md`, so every `BUILTIN_GATES`
   name now has a discoverable `template/gates/<name>.md` preset. `template/driver.md` references them as

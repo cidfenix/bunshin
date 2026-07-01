@@ -59,9 +59,19 @@ test('no live source/template file carries a stale agents/<role>.md path', () =>
     'template/driver.md',
     'template/bunshin.config.template.json',
     'template/bunshin.orchestrator.template.json',
+    'README.md',
   ]) {
     assert.ok(!/agents\/(implement|verify|review|triage)/.test(read(rel)), `${rel} must not reference agents/<role>`);
   }
+});
+
+test('README documents the configurable gate pipeline + orchestrator mode', () => {
+  const readme = read('README.md');
+  assert.ok(/gates\.steps/.test(readme), 'README must document the configurable gate pipeline (gates.steps)');
+  assert.ok(/template\/gates\//.test(readme), 'README must reference the template/gates/ preset layout');
+  assert.ok(/--orchestrator/.test(readme), 'README must document the --orchestrator flag');
+  assert.ok(/bunshin\.orchestrator\.json/.test(readme), 'README must name the orchestrator config file');
+  assert.ok(!/template\/agents\//.test(readme), 'README must not reference the old template/agents/ path');
 });
 
 console.log(`\ngates-layout.test.js: ${passed} passed`);
