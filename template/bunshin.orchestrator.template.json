@@ -1,0 +1,120 @@
+{
+  "$comment": "Bunshin ORCHESTRATOR configuration — ONE Jira project / Trello board whose goals span MULTIPLE repositories. This file has a DISTINCT name (bunshin.orchestrator.json) so it can coexist with a single-repo bunshin.config.json: a repo can evolve ITSELF (bunshin.config.json) while ALSO orchestrating OTHERS (this file). It lives in ANY folder (an 'orchestrator home') and lists the repositories under `repositories`. Select it at run time with:  bunshin run --orchestrator. The driver runs the SAME pipeline, but each goal first passes the TRIAGE gate, which decides which repository the goal belongs to before anything is built. See the bunshin package README + template/driver.md.",
+
+  "project": {
+    "$comment": "Human-readable name for this orchestrator, used in launcher prose and reports.",
+    "name": "{{PROJECT_NAME}}"
+  },
+
+  "provider": {
+    "$comment": "Which task tracker backs the queue: 'jira' (default) or 'trello'. Same as the single-repo config — one board/project feeds goals for ALL the repositories below. Absent ⇒ 'jira'.",
+    "kind": "jira"
+  },
+
+  "agent": {
+    "$comment": "Which agent CLI Bunshin launches: 'claude' (Claude Code, default) or 'codex'. Absent ⇒ 'claude'.",
+    "kind": "claude"
+  },
+
+  "repositories": [
+    {
+      "$comment": "One entry PER repository this board drives. TRIAGE (the first gate) matches each goal to exactly ONE of these.",
+      "id": "web",
+      "name": "Acme Web",
+      "remote": "git@github.com:acme/web.git",
+      "path": "../acme-web",
+      "baseBranch": "main",
+      "description": "Customer-facing Next.js web app: marketing site, checkout, account UI, styling."
+    },
+    {
+      "id": "api",
+      "name": "Acme API",
+      "remote": "git@github.com:acme/api.git",
+      "path": "../acme-api",
+      "baseBranch": "main",
+      "description": "Backend REST/GraphQL service: endpoints, database, auth, background jobs."
+    }
+  ],
+  "repositoriesNote": "The repositories this orchestrator drives (replace the two examples). Each entry: `id` (short UNIQUE slug — used in branches/reports), `name` (human label; defaults to id), `remote` (git URL — the clone target when `path` is missing), `path` (local checkout, relative to this file or absolute), optional `baseBranch` (defaults to git.baseBranch below), optional `description` (a TRIAGE hint). A repo needs at least a `remote` OR a `path`. TRIAGE reads the goal text against each repo's `description` here PLUS its CLAUDE.md/README at `path`; when it cannot confidently pick one, the goal is moved to Blocked with a comment about the missing info (it never guesses).",
+
+  "board": {
+    "$comment": "TRELLO provider (provider.kind = 'trello'). The board that IS the queue for ALL repositories. Resolve list ids by NAME at runtime; call set_active_board once at startup.",
+    "boardId": "{{BOARD_ID}}",
+    "boardShortLink": "{{BOARD_SHORTLINK}}",
+    "boardName": "{{BOARD_NAME}}",
+    "lists": {
+      "$comment": "Logical column → acceptable list NAME(s). Matched case/space/hyphen-insensitively. 'inReview' is only used when merge.mode is 'pr'.",
+      "pending": ["Pending", "To Do", "Backlog"],
+      "inProgress": ["In Progress", "Doing", "WIP"],
+      "blocked": ["Blocked", "Parked", "On Hold"],
+      "done": ["Done", "Complete", "Merged"],
+      "inReview": ["In Review", "Review", "Reviewing"]
+    }
+  },
+
+  "jira": {
+    "$comment": "JIRA provider (provider.kind = 'jira'). One project's issues feed ALL repositories. You can delete this block when using Trello.",
+    "baseUrl": "https://your-org.atlassian.net",
+    "projectKey": "PROJ",
+    "jql": "",
+    "jqlNote": "Optional extra JQL to scope the queue, ANDed with the project + status filters. Empty = the whole project.",
+    "statuses": {
+      "$comment": "Jira status NAMES per logical column — one name OR an array of aliases, matched case/space/hyphen-insensitively. 'inReview' is only used when merge.mode is 'pr'.",
+      "pending": ["To Do", "Selected for Development", "Backlog"],
+      "inProgress": ["In Progress"],
+      "blocked": ["Blocked"],
+      "done": ["Done"],
+      "inReview": ["In Review"]
+    }
+  },
+
+  "git": {
+    "$comment": "Branch + worktree conventions applied inside EACH target repository (the one triage picks). The driver cuts the worktree off that repo's baseBranch (a repository entry can override `baseBranch`). `worktreeBaseDir` is where per-goal worktrees are created for the chosen repo (relative to that repo, or absolute).",
+    "baseBranch": "{{BASE_BRANCH}}",
+    "branchPrefix": "goal/",
+    "worktreeBaseDir": "{{WORKTREE_BASE_DIR}}"
+  },
+
+  "merge": {
+    "$comment": "How a goal that passes all gates is integrated INTO ITS repository. 'auto' (default) = local fast-forward merge into that repo's baseBranch. 'pr' = push + open a GitHub PR (needs a remote + gh/GitHub MCP).",
+    "mode": "auto",
+    "remote": "origin",
+    "prMethod": "squash",
+    "autoMerge": {
+      "$comment": "When mode='pr', an open PR auto-merges once ALL gates set here pass. Disable a gate with its neutral value: approvals 0, label \"\". BOTH disabled ⇒ open PRs but never auto-merge (a human merges; the reaper syncs to Done).",
+      "approvals": 1,
+      "label": "",
+      "requireChecksGreen": true
+    }
+  },
+
+  "gates": {
+    "$comment": "The ORDERED gate pipeline the driver runs for each goal. In ORCHESTRATOR mode, keep `triage` FIRST — it decides which repository the goal belongs to before anything is cut/built; a goal it cannot place is moved to Blocked. The rest of the pipeline is the usual per-repo preset (drop the web-only `verify` gate for non-web repos, add custom command/skill steps, etc.). Absent/empty steps ⇒ the single-repo default [\"implement\", \"verify\", \"review\"] (no triage) — so ALWAYS set steps here for orchestrator mode.",
+    "stepsNote": "Built-in gates: \"triage\" = pick the target repository from the goal text + each repo's description/CLAUDE.md/README (orchestrator-only; PARK/Blocked if undecidable); \"implement\" = code it TDD-style + commands.install & commands.gateChecks; \"verify\" = Playwright behavioral smoke (WEB-ONLY); \"review\" = fresh adversarial APPROVE/BLOCK. Custom steps: {\"command\":\"<shell>\",\"name\":\"...\"} (non-zero exit ⇒ Blocked) or {\"skill\":\"<name>\",\"name\":\"...\"} — e.g. supply your OWN triage gate as a {\"skill\":\"...\"} step in place of the built-in. Steps run in array order, fail-fast.",
+    "steps": ["triage", "implement", "verify", "review"]
+  },
+
+  "artifactsDir": ".bunshin/artifacts",
+
+  "commands": {
+    "$comment": "Per-project shell commands the gates run inside the chosen repository's worktree. When repositories use DIFFERENT toolchains, set the LOWEST-common-denominator here and rely on each repo's CLAUDE.md to tell the agents how to build/test; or run heterogeneous repos under separate orchestrators. REPLACE these for your toolchain.",
+    "install": "",
+    "installNote": "Dependency install for the target repo (empty if none / a zero-dep repo). For pnpm keep --frozen-lockfile --ignore-scripts (see the single-repo template's installNote for why).",
+    "gateChecks": "npm test",
+    "devServer": "",
+    "agentStart": ""
+  },
+
+  "verify": {
+    "$comment": "Gate 'verify' (Playwright smoke + reachability) knobs — used only if a repo keeps the verify gate.",
+    "agentTag": "[agent]",
+    "agentTagNote": "A trailing token in a goal title marking a feature that needs an extra background process for the verify gate via commands.agentStart.",
+    "benignConsoleErrors": [],
+    "benignConsoleErrorsNote": "Substrings of EXPECTED offline console noise the verify gate must IGNORE."
+  },
+
+  "neverCommit": {
+    "$comment": "Files the agents must NEVER stage (install-time churn), blocked by the review gate if they appear in the diff. Adjust to your package managers' lockfiles.",
+    "paths": ["package-lock.json"]
+  }
+}

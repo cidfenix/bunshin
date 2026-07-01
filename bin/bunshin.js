@@ -31,6 +31,8 @@ Commands:
             machine (liveness, current gate, current goal). Reads ~/.bunshin/.
 
 setup / init options:
+  --orchestrator        Write/target the ORCHESTRATOR config (bunshin.orchestrator.json — one
+                        board driving MANY repositories) instead of the single-repo config.
   --dir <path>          Target repo root (default: the current git repo / cwd).
   --name <name>         Project name written into the config.
   --board-id <id>       Trello board id.
@@ -41,6 +43,8 @@ setup / init options:
   --force               Overwrite an existing bunshin.config.json.
 
 run options:
+  --orchestrator        Run the ORCHESTRATOR config (bunshin.orchestrator.json): one board whose
+                        goals span MANY repos; each goal is triaged to its repo before implementing.
   --interval <t>        Re-check cadence for the /loop (default: 20m).
   --once                Process exactly one goal, then stop.
   --unattended          Bypass ALL of the agent CLI's permission prompts (hands-off; use with care).
@@ -59,7 +63,7 @@ function parseArgs(argv) {
   const opts = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--once' || a === '--unattended' || a === '--force' || a === '--open') {
+    if (a === '--once' || a === '--unattended' || a === '--force' || a === '--open' || a === '--orchestrator') {
       opts[a.slice(2)] = true;
     } else if (a.startsWith('--')) {
       const key = a.slice(2);

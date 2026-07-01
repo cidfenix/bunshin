@@ -5,12 +5,14 @@ const path = require('path');
 const { spawn } = require('child_process');
 const {
   CONFIG_FILENAME,
+  ORCHESTRATOR_CONFIG_FILENAME,
   packageDriverPath,
   gitRoot,
   isCleanTree,
   hasExecutable,
   resolveAgent,
   buildLaunchCommand,
+  resolveRepositories,
   exists,
 } = require('./util');
 const reg = require('./registry');
@@ -60,28 +62,81 @@ function buildPrompt(projectName, once, driverPath, statusFile) {
   );
 }
 
+// ORCHESTRATOR mode: one board's goals span MANY repositories (listed in the orchestrator
+// config). The driver is the same, but each goal first passes the `triage` gate — it reads the
+// goal text against the configured repositories (their description + CLAUDE.md/README) to pick
+// ONE repo, then implements there. A goal triage can't place is moved to Blocked. Pure +
+// unit-testable, exactly like buildPrompt.
+function buildOrchestratorPrompt(projectName, once, driverPath, statusFile, configFilename, repositories) {
+  const scope = once
+    ? "process EXACTLY ONE goal from the Pending column"
+    : "process goals from the Pending column serially until Pending is empty";
+  const driver = driverPath.split(/[\\/]/).join('/');
+  const repoList = (repositories || []).map((r) => `${r.id} (${r.name})`).join(', ');
+  const heartbeat = statusFile
+    ? `As you work, write progress heartbeats to the status file at ${statusFile.split(/[\\/]/).join('/')} ` +
+      `following the driver's Heartbeat contract (best-effort; never fail the loop if the write fails). `
+    : '';
+  return (
+    `Execute the ${projectName} Bunshin in ORCHESTRATOR MODE across ${(repositories || []).length} ` +
+    `repositories [${repoList}]: read the Bunshin driver at ${driver} (its agent briefs are in the ` +
+    `agents/ folder beside it) and follow it to ${scope}. The orchestrator config is ${configFilename} ` +
+    `at the root of the current folder; it lists the repositories (git remote + local path) and the ` +
+    `gate pipeline. For EACH goal, run the TRIAGE gate FIRST to identify which repository it belongs to ` +
+    `(from the goal text plus each repo's description + CLAUDE.md/README). If triage cannot confidently ` +
+    `determine the repository, move the goal to Blocked with a comment naming the candidates and the ` +
+    `missing info -- do NOT guess. Otherwise implement it in that repository's worktree through the ` +
+    `remaining gates to integration. ` +
+    heartbeat +
+    `Then stop until the next scheduled run.`
+  );
+}
+
 async function run(opts) {
   const cwd = process.cwd();
-  const root = gitRoot(cwd);
+  const orchestrator = Boolean(opts.orchestrator);
+  const configFilename = orchestrator ? ORCHESTRATOR_CONFIG_FILENAME : CONFIG_FILENAME;
+
+  // Single-repo mode must run from inside the repo it drains (unchanged). Orchestrator mode is
+  // driven from an "orchestrator home" folder that need not itself be a git repo — the goals are
+  // implemented in the target repositories the config lists, not in this folder.
+  const gitTop = gitRoot(cwd);
+  const root = orchestrator ? gitTop || cwd : gitTop;
   if (!root) {
     throw new Error('Not inside a git repository. Run bunshin from the repo you want to drain.');
   }
 
-  const configPath = path.join(root, CONFIG_FILENAME);
+  const configPath = path.join(root, configFilename);
   if (!exists(configPath)) {
-    throw new Error(
-      `No ${CONFIG_FILENAME} found at the repo root.\n` +
-        `Run "npx github:cidfenix/bunshin setup" (guided) or "… init" first.`
-    );
+    const hint = orchestrator
+      ? `Run "npx github:cidfenix/bunshin init --orchestrator" (or "setup") first.`
+      : `Run "npx github:cidfenix/bunshin setup" (guided) or "… init" first.`;
+    throw new Error(`No ${configFilename} found at ${orchestrator ? 'this folder' : 'the repo root'}.\n${hint}`);
   }
 
-  // The bunshin loop fast-forward-merges into THIS working tree, so it must be clean.
-  const clean = isCleanTree(root);
-  if (clean === false) {
-    throw new Error(
-      'Working tree is not clean. Commit or stash your changes before running Bunshin\n' +
-        '(it fast-forward-merges finished goals into this tree).'
-    );
+  // Single-repo runs fast-forward-merge finished goals into THIS working tree, so it must be clean.
+  // Orchestrator mode merges into each TARGET repo (not this folder), so the home tree is exempt.
+  if (!orchestrator) {
+    const clean = isCleanTree(root);
+    if (clean === false) {
+      throw new Error(
+        'Working tree is not clean. Commit or stash your changes before running Bunshin\n' +
+          '(it fast-forward-merges finished goals into this tree).'
+      );
+    }
+  }
+
+  // In orchestrator mode, validate the repositories list up front so a bad config fails fast
+  // (rather than deep inside the driver's triage gate).
+  let repositories = [];
+  if (orchestrator) {
+    let cfg;
+    try {
+      cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch (e) {
+      throw new Error(`Could not parse ${configFilename}: ${e && e.message ? e.message : e}`);
+    }
+    repositories = resolveRepositories(cfg); // throws a clear error on a malformed repositories array
   }
 
   const interval = opts.interval || '20m';
@@ -105,10 +160,13 @@ async function run(opts) {
   const repoId = reg.repoIdFor(root);
   const statusFile = reg.statusFileFor(repoId);
 
-  const prompt = buildPrompt(projectName, once, packageDriverPath(), statusFile);
+  const prompt = orchestrator
+    ? buildOrchestratorPrompt(projectName, once, packageDriverPath(), statusFile, configFilename, repositories)
+    : buildPrompt(projectName, once, packageDriverPath(), statusFile);
 
   console.log(
-    `Launching Bunshin via ${agent.label} (interval: ${interval}, once: ${once}, unattended: ${unattended})`
+    `Launching Bunshin via ${agent.label}${orchestrator ? ` in ORCHESTRATOR mode over ${repositories.length} repos` : ''} ` +
+      `(interval: ${interval}, once: ${once}, unattended: ${unattended})`
   );
   if (unattended) {
     console.log(
@@ -151,4 +209,4 @@ async function run(opts) {
   });
 }
 
-module.exports = { run, buildPrompt };
+module.exports = { run, buildPrompt, buildOrchestratorPrompt };

@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { CONFIG_FILENAME, templateDir, gitRoot, exists } = require('./util');
+const { CONFIG_FILENAME, ORCHESTRATOR_CONFIG_FILENAME, templateDir, gitRoot, exists } = require('./util');
 
 function resolveTargetRoot(opts) {
   if (opts.dir) return path.resolve(opts.dir);
@@ -27,13 +27,20 @@ function renderConfig(templatePath, opts, targetRoot) {
   return text;
 }
 
-// Ensure bunshin.config.json exists at the repo root (write the template if missing,
+// Ensure the config file exists at the repo/home root (write the template if missing,
 // or when --force). Returns where it is and whether it was just created. Shared by
 // `init` and `setup` (the config-only model: this is the only file in the repo; the
 // driver + agent briefs are served from the installed package).
+//
+// `opts.orchestrator` selects the ORCHESTRATOR config — a distinctly-named
+// `bunshin.orchestrator.json` (from bunshin.orchestrator.template.json) that lists MANY
+// repositories one board drives. It coexists with a single-repo `bunshin.config.json`.
 function ensureConfig(opts = {}) {
   const targetRoot = resolveTargetRoot(opts);
-  const configPath = path.join(targetRoot, CONFIG_FILENAME);
+  const orchestrator = Boolean(opts.orchestrator);
+  const filename = orchestrator ? ORCHESTRATOR_CONFIG_FILENAME : CONFIG_FILENAME;
+  const templateName = orchestrator ? 'bunshin.orchestrator.template.json' : 'bunshin.config.template.json';
+  const configPath = path.join(targetRoot, filename);
 
   if (!exists(path.join(targetRoot, '.git'))) {
     console.warn(`Warning: ${targetRoot} does not look like a git repo root (no .git). Continuing anyway.`);
@@ -41,16 +48,25 @@ function ensureConfig(opts = {}) {
 
   let wrote = false;
   if (!exists(configPath) || opts.force) {
-    const rendered = renderConfig(path.join(templateDir(), 'bunshin.config.template.json'), opts, targetRoot);
+    const rendered = renderConfig(path.join(templateDir(), templateName), opts, targetRoot);
     fs.writeFileSync(configPath, rendered);
     wrote = true;
   }
-  return { targetRoot, configPath, wrote };
+  return { targetRoot, configPath, wrote, orchestrator };
 }
 
 async function init(opts) {
-  const { targetRoot, wrote } = ensureConfig(opts);
-  console.log(wrote ? `wrote   ${CONFIG_FILENAME}` : `kept    ${CONFIG_FILENAME} (already present; pass --force to overwrite)`);
+  const { targetRoot, wrote, orchestrator } = ensureConfig(opts);
+  const filename = orchestrator ? ORCHESTRATOR_CONFIG_FILENAME : CONFIG_FILENAME;
+  console.log(wrote ? `wrote   ${filename}` : `kept    ${filename} (already present; pass --force to overwrite)`);
+  if (orchestrator) {
+    console.log(`\n✅ Bunshin orchestrator config ready.\n`);
+    console.log(`Edit ${filename} — list your repositories (id, git remote, local path, optional description`);
+    console.log('for triage), pick the provider/board, and keep "triage" first in gates.steps. Then launch:');
+    console.log('  npx github:cidfenix/bunshin run --orchestrator');
+    console.log('');
+    return;
+  }
   printNextSteps(targetRoot);
 }
 

@@ -7,6 +7,12 @@ const { spawnSync } = require('child_process');
 // The single per-repo file Bunshin writes/reads, at the consuming repo's root.
 const CONFIG_FILENAME = 'bunshin.config.json';
 
+// The ORCHESTRATOR config file. A single board/project can hold goals for MANY repositories;
+// this distinctly-named file (chosen at run time via `bunshin run --orchestrator`) lists them.
+// The two files coexist by design: a repo can own a `bunshin.config.json` to evolve ITSELF and
+// also hold a `bunshin.orchestrator.json` to drive OTHERS.
+const ORCHESTRATOR_CONFIG_FILENAME = 'bunshin.orchestrator.json';
+
 function readVersion() {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
@@ -126,8 +132,11 @@ function buildSetupCommand(agent, prompt) {
 // gate for config-only/CLI repos, or mix in custom `command`/`skill` steps.
 // `resolveGates` is pure (no fs/spawn) so it is unit-testable; the driver markdown
 // reads the same `gates.steps` list and runs the resolved steps in order, fail-fast.
-const BUILTIN_GATES = Object.freeze(['implement', 'verify', 'review']);
-// Absent/empty ⇒ this default, so existing repos are unchanged.
+// `triage` is the ORCHESTRATOR-mode preset gate: it picks which repository a goal belongs to
+// (see resolveRepositories / template/driver.md). It is a valid step name but is NOT part of the
+// single-repo default pipeline below — only orchestrator configs lead their `gates.steps` with it.
+const BUILTIN_GATES = Object.freeze(['triage', 'implement', 'verify', 'review']);
+// Absent/empty ⇒ this default, so existing (single-repo) repos are unchanged.
 const DEFAULT_GATE_STEPS = Object.freeze(['implement', 'verify', 'review']);
 
 function normalizeGateStep(entry, index) {
@@ -178,6 +187,58 @@ function resolveGates(config) {
   return steps.map(normalizeGateStep);
 }
 
+// --- Orchestrator repositories -----------------------------------------------
+// In orchestrator mode one board's goals span MANY repositories, listed under
+// `repositories` in the orchestrator config. `resolveRepositories` validates and
+// normalizes that array (pure, no fs) so run.js can guard on a bad config early and
+// the driver's `triage` gate has a clean candidate set. Each normalized entry:
+//   { id, name, remote|null, path|null, baseBranch|null, description }
+// A repo needs a unique `id` and at least a `remote` (git URL) or a `path` (local checkout).
+function resolveRepositories(config) {
+  const raw = config && config.repositories;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new Error(
+      `Orchestrator config ${ORCHESTRATOR_CONFIG_FILENAME} needs a non-empty "repositories" array ` +
+        `(each entry: id + a remote and/or path). None found — is this an orchestrator config?`
+    );
+  }
+  const seen = new Set();
+  return raw.map((entry, index) => {
+    const where = `repositories[${index}]`;
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new Error(
+        `Invalid ${where} in ${ORCHESTRATOR_CONFIG_FILENAME}: expected an object with id + remote/path, ` +
+          `got ${entry === null ? 'null' : typeof entry}.`
+      );
+    }
+    const id = String(entry.id == null ? '' : entry.id).trim();
+    if (!id) {
+      throw new Error(`Missing "id" at ${where} in ${ORCHESTRATOR_CONFIG_FILENAME} (a short unique repository slug).`);
+    }
+    const key = id.toLowerCase();
+    if (seen.has(key)) {
+      throw new Error(`Duplicate repository id "${id}" at ${where} in ${ORCHESTRATOR_CONFIG_FILENAME}; ids must be unique.`);
+    }
+    seen.add(key);
+    const remote = String(entry.remote == null ? '' : entry.remote).trim();
+    const localPath = String(entry.path == null ? '' : entry.path).trim();
+    if (!remote && !localPath) {
+      throw new Error(
+        `Repository "${id}" at ${where} in ${ORCHESTRATOR_CONFIG_FILENAME} needs at least a ` +
+          `"remote" (git URL) or a "path" (local checkout).`
+      );
+    }
+    return {
+      id,
+      name: entry.name ? String(entry.name) : id,
+      remote: remote || null,
+      path: localPath || null,
+      baseBranch: entry.baseBranch ? String(entry.baseBranch) : null,
+      description: entry.description ? String(entry.description) : '',
+    };
+  });
+}
+
 function exists(p) {
   try {
     fs.accessSync(p);
@@ -215,6 +276,7 @@ function copyDir(srcDir, destDir, overwrite) {
 
 module.exports = {
   CONFIG_FILENAME,
+  ORCHESTRATOR_CONFIG_FILENAME,
   readVersion,
   templateDir,
   packageDriverPath,
@@ -228,6 +290,7 @@ module.exports = {
   BUILTIN_GATES,
   DEFAULT_GATE_STEPS,
   resolveGates,
+  resolveRepositories,
   exists,
   ensureDir,
   copyFile,

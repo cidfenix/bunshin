@@ -9,6 +9,16 @@ defaulting to the built-in `implement → verify → review` trio. This is what 
 that are **not** web apps: reorder the gates, drop the web-only `verify` gate for config-only/CLI/Android
 repos, or mix in custom `command`/`skill` steps. See **GATES (the configurable pipeline)** below.
 
+**Two run modes.** In the default **single-repo** mode you drain one repository's board and the config
+is `bunshin.config.json` at that repo's root. In **orchestrator** mode (launched with
+`bunshin run --orchestrator`) ONE board's goals span **multiple repositories**: the config is
+**`bunshin.orchestrator.json`** in the current folder, it lists the target `repositories` (git remote +
+local path + an optional triage `description`), and its `gates.steps` lead with the **`triage`** gate —
+which decides *which* repository each goal belongs to before anything is built. The launch prompt tells
+you which mode and which config file to read. Everything below is written for single-repo mode; the
+**ORCHESTRATOR MODE** notes call out the differences (the config file, the `triage` gate, and that the
+worktree/merge target is the *triaged* repository, not the current folder).
+
 This driver is **repo-agnostic** and is served from the installed `bunshin` package — you are reading
 it from there. Every repo-specific value (board ids, worktree base dir, the `install`/gate/dev-server
 commands, the artifact dir, the benign-console-error allowlist) lives in **`bunshin.config.json`** at
@@ -85,9 +95,15 @@ constraint.)
 4. Create an isolated worktree on a fresh branch off `<git.baseBranch>`, under `<git.worktreeBaseDir>`:
    `git worktree add <git.worktreeBaseDir>/<N>-<slug> -b <git.branchPrefix><N>-<slug> <git.baseBranch>`
    All implementation/test work happens in that worktree directory.
+   - **ORCHESTRATOR MODE:** the `triage` gate (step 5, run FIRST) has already chosen the target
+     repository. Cut the worktree inside THAT repo (its `path`, cloning `remote` there if the checkout
+     is missing), off that repo's base branch (its `baseBranch`, else `git.baseBranch`). So run triage
+     before creating the worktree — the triaged repo is what everything downstream (worktree, gates,
+     integration) operates on. A goal triage cannot place is PARKED without a worktree ever being cut.
 5. Run the **configured gates in order, fail-fast** (see **GATES (the configurable pipeline)** below):
    read `gates.steps` from the config (absent/empty ⇒ the default `["implement", "verify", "review"]`)
-   and run each resolved step in sequence, stopping at the FIRST failure.
+   and run each resolved step in sequence, stopping at the FIRST failure. In orchestrator mode the
+   first step is `triage` — resolve the target repo (step 4's note) before cutting the worktree.
 6. If ALL gates pass → **INTEGRATE** (below — behaviour depends on `merge.mode`):
    - `auto`: local fast-forward merge, then transition the issue **→ Done** and comment
      `merged: <merge-sha>`.
@@ -153,6 +169,27 @@ Each step in `gates.steps` is EITHER a **built-in gate** (a string name, or `{"g
 **custom step** (`{"command": "<shell>"}` or `{"skill": "<name>"}`). An optional `name` on an object
 step is a human label (used in reasons/heartbeats). An unknown built-in name, or an object with none of
 `gate`/`command`/`skill`, is a config error — report it rather than guessing.
+
+### Built-in gate `triage` — pick the target repository — ORCHESTRATOR-ONLY
+- Used **only in orchestrator mode** (`bunshin run --orchestrator`, config `bunshin.orchestrator.json`),
+  where ONE board's goals span the MANY repositories listed under `repositories`. Put it **FIRST** in
+  `gates.steps` — it runs before the worktree is cut (step 4) so the rest of the pipeline operates on the
+  chosen repo.
+- Match the goal text to **exactly one** configured repository. Use each repo entry's `description`
+  hint PLUS, for the strongest signal, its **CLAUDE.md / README** at the repo's `path` (clone `remote`
+  into `path` first if the local checkout is missing). Weigh names of features/dirs/services mentioned in
+  the goal against what each repo owns.
+- On a confident single match: record the chosen repo's `id`, `path`, and `baseBranch` (its own
+  `baseBranch`, else `git.baseBranch`) and carry them into step 4 (the worktree is cut inside that repo)
+  and INTEGRATION (the merge/PR targets that repo's base branch). Note the chosen `id` in the goal's
+  branch/reports and heartbeat `action`.
+- If triage **cannot confidently determine** the repository (no match, or an ambiguous tie): **PARK** —
+  transition the goal **→ Blocked** and comment naming the candidate repositories considered and exactly
+  what information is missing to decide (e.g. "mention the repo/service, or a file/path that identifies
+  it"). **Do NOT guess.** No worktree is created for a parked-at-triage goal.
+- Consumers can supply their **own** triage gate instead of this preset: a custom `{"skill": "<name>"}`
+  or `{"command": "<shell>"}` step that emits the chosen repo `id`. Treat a "no repo / undecidable"
+  result as a PARK exactly as above.
 
 ### Built-in gate `implement` — implement + deterministic checks
 - Dispatch the implement agent with the `Agent` tool (`subagent_type: general-purpose`), passing the

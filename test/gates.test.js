@@ -28,7 +28,8 @@ test('an empty steps array falls back to the default (a no-gate pipeline is dege
 });
 
 test('exposes the built-in gate names and the default order', () => {
-  assert.deepStrictEqual(BUILTIN_GATES.slice(), ['implement', 'verify', 'review']);
+  // `triage` is a built-in gate (orchestrator mode) but NOT part of the default single-repo pipeline.
+  assert.deepStrictEqual(BUILTIN_GATES.slice(), ['triage', 'implement', 'verify', 'review']);
   assert.deepStrictEqual(DEFAULT_GATE_STEPS.slice(), ['implement', 'verify', 'review']);
 });
 

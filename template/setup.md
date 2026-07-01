@@ -17,6 +17,23 @@ editing the file. At the end, make sure the required MCP servers are installed.
 > the real blockers, so don't bury them behind toolchain trivia: pick the tracker (step 2) and merge
 > mode (step 3), then settle the MCP servers (step 5) **before** the commands questions.
 
+## 0. Dedicated or orchestrator?
+First ask **what this Bunshin will drive**:
+
+- **Dedicated** (the default) — one repository evolving **itself**. Config file: **`bunshin.config.json`**
+  at the repo root. This is the flow the rest of this guide fills in.
+- **Orchestrator** — one board/project whose goals span **multiple repositories**, run from any folder.
+  Config file: **`bunshin.orchestrator.json`** (a DISTINCT name, so it can live **alongside** a
+  dedicated `bunshin.config.json` — a repo can evolve itself AND orchestrate others). Created with
+  `bunshin init --orchestrator` and launched with `bunshin run --orchestrator`.
+
+The two files coexist by design. If the user wants orchestrator mode, work in `bunshin.orchestrator.json`
+and, in addition to the steps below, fill the **`repositories`** array — one entry per repo with `id`,
+git `remote`, local `path`, an optional `baseBranch`, and a `description` (a hint for triage). Keep the
+**`triage`** gate FIRST in `gates.steps`: it reads each goal against the repositories' descriptions +
+their CLAUDE.md/README to decide which repo the goal belongs to (a goal it can't place is moved to
+Blocked). Consumers can swap in their own triage gate via a `{"skill": …}`/`{"command": …}` step.
+
 ## 1. Project name
 Confirm `project.name` (default: the repo folder name).
 

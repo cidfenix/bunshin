@@ -40,6 +40,13 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
    is the no-duplication win: one canonical pipeline, every repo just owns its config (like
    `.eslintrc`). Update the pipeline everywhere with `npm i -g github:cidfenix/bunshin` — no per-repo
    changes. (Reversed an earlier "scaffold the whole folder into each repo" model.)
+   **Orchestrator variant (BUN-7):** a second, distinctly-named config —
+   **`bunshin.orchestrator.json`** — lets ONE board drive **multiple repositories** from any folder. It
+   lists the target `repositories` (git remote + local path + a triage `description`) and coexists with a
+   single-repo `bunshin.config.json` (a repo can evolve itself AND orchestrate others). `bunshin run
+   --orchestrator` selects it (`--orchestrator` also for `init`/`setup`); absent the flag, everything is
+   the unchanged single-repo path. So the invariant is "one config file **per role**": the single-repo
+   config, and/or the orchestrator config.
 
 2. **Zero runtime npm dependencies.** `src/` is plain CommonJS using only Node built-ins (`fs`,
    `path`, `child_process`). No build step — the CLI runs directly from source. Keep it this way:
@@ -63,7 +70,11 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
    runs the resolved list in order, fail-fast. This lets Bunshin serve repos that are **not** web apps —
    drop the web-only `verify` gate for config-only/CLI/Android repos, or mix in your own gates. Pure
    resolver: `resolveGates()` in `src/util.js` (unit-tested in `test/gates.test.js`); the driver reads
-   the same `gates.steps`. (Reversed the earlier hard-coded three-gate pipeline.)
+   the same `gates.steps`. (Reversed the earlier hard-coded three-gate pipeline.) In **orchestrator mode**
+   (BUN-7) the pipeline leads with a new built-in gate **`triage`** (added to `BUILTIN_GATES`, but NOT to
+   the single-repo default): it identifies which repository a goal belongs to from the goal text + each
+   repo's `description`/CLAUDE.md/README; a goal it cannot place is moved to **Blocked** with a comment
+   (never guessed). Consumers can supply their own triage gate as a `command`/`skill` step.
    The tracker is pluggable via `provider.kind` (**`jira`** default, or **`trello`**): a
    provider-adapter table in `template/driver.md` maps each queue op (list columns, read a column,
    move a goal, comment) to Trello (`mcp__trello__*`) vs a Jira MCP (transitions/JQL); columns come
@@ -86,14 +97,15 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 | `bin/bunshin.js` | CLI entry: arg parsing, `--help`/`--version`, dispatch to `setup`/`init`/`run`. |
 | `src/init.js` | `init` — render `template/bunshin.config.template.json` (token substitution) → `bunshin.config.json` at the repo root. Exports `ensureConfig()` (write-if-missing), reused by `setup`. |
 | `src/setup.js` | `setup` — `ensureConfig()` then `spawn` the selected agent CLI (`resolveAgent`/`buildSetupCommand`; a plain interactive session, no `/loop`) pointed at `template/setup.md`. `buildSetupPrompt()` is the unit-testable core. |
-| `src/run.js` | `run` — guards (git repo · config present · clean tree · agent CLI on PATH), build the prompt pointing at the package driver, `spawn` the selected agent CLI (`resolveAgent`/`buildLaunchCommand` — claude `/loop` vs `codex exec`). Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. |
+| `src/run.js` | `run` — guards (git repo · config present · clean tree · agent CLI on PATH), build the prompt pointing at the package driver, `spawn` the selected agent CLI (`resolveAgent`/`buildLaunchCommand` — claude `/loop` vs `codex exec`). Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. The **`--orchestrator`** flag switches it to the `bunshin.orchestrator.json` config (validated up front via `resolveRepositories`; clean-tree guard skipped — the merge target is each repo, not the home) and builds `buildOrchestratorPrompt()` (also pure/unit-testable) instead. |
 | `src/registry.js` | The shared per-user home `~/.bunshin/` that relates every running repo: `repoIdFor()`, `register()`, `markStopped()`, `readAll()`, atomic writes. Keyed by `repoId` = sha256(repo path)[:12]. |
 | `src/watch.js` | `watch` — zero-dep localhost dashboard (built-in `http`). Pure file aggregator over `~/.bunshin/` (registry + per-repo heartbeats); never calls a tracker. `buildStatusPayload()` (liveness: running/stale/stopped) is the unit-testable core. The served page has **two view modes** (header toggle, localStorage-persisted): **Pro** (status tiles) and **🥷 Bunshin** (pixel-art canvas dojos — loop ninja casts a shadow clone per goal, sub-clone per gate). `sceneFor(repo)` is the pure state→scene mapper, unit-tested in Node and inlined into the page via `.toString()` (single source of truth). |
-| `src/util.js` | Helpers: `CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`, plus the configurable gate pipeline — `resolveGates(config)` (normalizes `gates.steps` → ordered built-in/`command`/`skill` steps; absent ⇒ `implement → verify → review`), `BUILTIN_GATES`, `DEFAULT_GATE_STEPS`. |
+| `src/util.js` | Helpers: `CONFIG_FILENAME`, `ORCHESTRATOR_CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`, plus the configurable gate pipeline — `resolveGates(config)` (normalizes `gates.steps` → ordered built-in/`command`/`skill` steps; absent ⇒ `implement → verify → review`), `BUILTIN_GATES` (now incl. `triage`), `DEFAULT_GATE_STEPS`, plus orchestrator — `resolveRepositories(config)` (validates/normalizes the `repositories` array; unit-tested in `test/orchestrator.test.js`). |
 | `template/driver.md` | The autonomous `/loop` driver procedure (the pipeline). |
 | `template/setup.md` | The **interactive** setup guide the `setup` session follows (asks the user, fills the config, installs MCPs). |
 | `template/agents/{implement,verify,review}.md` | The three agent briefs the driver dispatches. |
-| `template/bunshin.config.template.json` | Placeholder config (`{{TOKENS}}` filled by `init`/`setup`). |
+| `template/bunshin.config.template.json` | Placeholder single-repo config (`{{TOKENS}}` filled by `init`/`setup`). |
+| `template/bunshin.orchestrator.template.json` | Placeholder **orchestrator** config (BUN-7): adds the `repositories` array + a triage-led `gates.steps`; written by `init --orchestrator`. |
 | `assets/bunshin-banner.svg` | Original themed README banner (no copyrighted imagery). |
 
 ---
@@ -169,3 +181,12 @@ behaviour.
   them in order, fail-fast; new `gates` block + `$comment` docs in the template config. Absent ⇒ the old
   default, so existing repos are unchanged. Reverses LOCKED decision 4's fixed-gates assumption. Bunshin's
   own config now drops `verify` (it's a CLI repo, no dev server).
+- Orchestrator mode — first slice (BUN-7): one board can drive MULTIPLE repositories. New distinct config
+  `bunshin.orchestrator.json` (template + `$comment` docs) with a validated `repositories` array
+  (`resolveRepositories()` in `src/util.js`, unit-tested); `bunshin run --orchestrator` (and
+  `init`/`setup --orchestrator`) select it — pure `buildOrchestratorPrompt()` in `src/run.js`, single-repo
+  path 100% unchanged when the flag is absent. New built-in `triage` gate documented in
+  `template/driver.md` (leads the orchestrator `gates.steps`; infers the repo from goal text +
+  description/CLAUDE.md/README; undecidable ⇒ Blocked with a comment) + a dedicated-vs-orchestrator note in
+  `template/setup.md`. Extends LOCKED decisions 1 (config-per-role) & 4 (triage gate). Tests:
+  `test/orchestrator.test.js` (+ run/gates coverage), wired into `npm test`.
