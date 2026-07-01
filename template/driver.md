@@ -238,6 +238,17 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
 - It returns `APPROVE` or `BLOCK: <what's missing from README.md>`.
 - `BLOCK` → PARK with the objection as the reason.
 
+### Built-in gate `claude-md` — adversarial CLAUDE.md check — OPT-IN
+- **Opt-in only:** this gate runs only when a repo names `claude-md` in its `gates.steps`; it is NOT in
+  the default `implement → verify → review` pipeline, so existing repos are unchanged. Typically placed
+  right before `review` (so the diff already includes any docs the implement agent wrote).
+- Dispatch a FRESH agent (`Agent` tool) with the brief `gates/claude-md.md`, passing the branch diff and
+  the goal text. It enforces ONE thing: when a change alters the project's architecture, conventions, or
+  a LOCKED decision, `CLAUDE.md` must have been updated to match; a change that touches nothing
+  `CLAUDE.md` documents needs no update.
+- It returns `APPROVE` or `BLOCK: <what's missing/inconsistent in CLAUDE.md>`.
+- `BLOCK` → PARK with the objection as the reason.
+
 ### Custom step `{"command": "<shell>"}` — run a shell gate in the worktree
 - Run the given shell command in the worktree directory (`<git.worktreeBaseDir>/<N>-<slug>`).
 - **Non-zero exit → PARK.** Use this for lint/typecheck/security-scan/`./gradlew assembleDebug`-style

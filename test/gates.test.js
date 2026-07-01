@@ -28,9 +28,9 @@ test('an empty steps array falls back to the default (a no-gate pipeline is dege
 });
 
 test('exposes the built-in gate names and the default order', () => {
-  // `triage` (orchestrator mode) and `readme` (opt-in docs gate) are built-in gates but NOT part of
-  // the default single-repo pipeline.
-  assert.deepStrictEqual(BUILTIN_GATES.slice(), ['triage', 'implement', 'verify', 'review', 'readme']);
+  // `triage` (orchestrator mode), `readme` and `claude-md` (opt-in docs gates) are built-in gates but
+  // NOT part of the default single-repo pipeline.
+  assert.deepStrictEqual(BUILTIN_GATES.slice(), ['triage', 'implement', 'verify', 'review', 'readme', 'claude-md']);
   assert.deepStrictEqual(DEFAULT_GATE_STEPS.slice(), ['implement', 'verify', 'review']);
 });
 
@@ -50,6 +50,25 @@ test('the `readme` gate name is matched case- and space-insensitively like the o
   const steps = resolveGates({ gates: { steps: [' Readme ', { gate: 'README', name: 'Docs check' }] } });
   assert.strictEqual(steps[0].gate, 'readme');
   assert.strictEqual(steps[1].gate, 'readme');
+  assert.strictEqual(steps[1].name, 'Docs check');
+});
+
+test('the opt-in `claude-md` docs gate is a recognized built-in but NOT in the default pipeline', () => {
+  assert.ok(BUILTIN_GATES.includes('claude-md'), 'claude-md must be a built-in gate name');
+  assert.ok(!DEFAULT_GATE_STEPS.includes('claude-md'), 'claude-md must NOT be in the default pipeline (opt-in only)');
+});
+
+test('a repo opts into the `claude-md` docs gate by naming it in gates.steps', () => {
+  const steps = resolveGates({ gates: { steps: ['implement', 'claude-md', 'review'] } });
+  assert.deepStrictEqual(steps.map((s) => s.gate), ['implement', 'claude-md', 'review']);
+  assert.strictEqual(steps[1].type, 'builtin');
+  assert.strictEqual(steps[1].name, 'claude-md');
+});
+
+test('the `claude-md` gate name is matched case- and space-insensitively like the others', () => {
+  const steps = resolveGates({ gates: { steps: [' Claude-MD ', { gate: 'CLAUDE-MD', name: 'Docs check' }] } });
+  assert.strictEqual(steps[0].gate, 'claude-md');
+  assert.strictEqual(steps[1].gate, 'claude-md');
   assert.strictEqual(steps[1].name, 'Docs check');
 });
 

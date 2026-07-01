@@ -23,8 +23,8 @@ board — see "Two halves" below.)
 2. **The pipeline** (`template/`) — generic markdown that a launched Claude Code session *reads and
    follows*: `driver.md` (the autonomous `/loop` that drains the queue) + the **built-in gate presets**
    in `template/gates/` (`implement`/`verify`/`review` briefs + the orchestrator-only `triage` + the
-   opt-in docs gate `readme`), plus `setup.md` (an **interactive** guide the `setup` session follows to
-   configure the repo). All served
+   opt-in docs gates `readme`/`claude-md`), plus `setup.md` (an **interactive** guide the `setup`
+   session follows to configure the repo). All served
    **from the installed package** at run time, never copied into consuming repos.
 
 Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/reviewed → `template/`.
@@ -43,8 +43,8 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
    `.eslintrc`). Update the pipeline everywhere with `npm i -g github:cidfenix/bunshin` — no per-repo
    changes. (Reversed an earlier "scaffold the whole folder into each repo" model.) The **built-in gate
    presets** are self-contained files in `template/gates/` beside the driver (`implement`/`verify`/
-   `review` briefs + the orchestrator-only `triage` + the opt-in docs gate `readme`) — one file per
-   `BUILTIN_GATES` name; the driver references them as `gates/<name>.md`.
+   `review` briefs + the orchestrator-only `triage` + the opt-in docs gates `readme`/`claude-md`) — one
+   file per `BUILTIN_GATES` name; the driver references them as `gates/<name>.md`.
    **Orchestrator variant (BUN-7):** a second, distinctly-named config —
    **`bunshin.orchestrator.json`** — lets ONE board drive **multiple repositories** from any folder. It
    lists the target `repositories` (git remote + local path + a triage `description`) and coexists with a
@@ -105,10 +105,10 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 | `src/run.js` | `run` — guards (git repo · config present · clean tree · agent CLI on PATH), build the prompt pointing at the package driver, `spawn` the selected agent CLI (`resolveAgent`/`buildLaunchCommand` — claude `/loop` vs `codex exec`). Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. The **`--orchestrator`** flag switches it to the `bunshin.orchestrator.json` config (validated up front via `resolveRepositories`; clean-tree guard skipped — the merge target is each repo, not the home) and builds `buildOrchestratorPrompt()` (also pure/unit-testable) instead. |
 | `src/registry.js` | The shared per-user home `~/.bunshin/` that relates every running repo: `repoIdFor()`, `register()`, `markStopped()`, `readAll()`, atomic writes. Keyed by `repoId` = sha256(repo path)[:12]. |
 | `src/watch.js` | `watch` — zero-dep localhost dashboard (built-in `http`). Pure file aggregator over `~/.bunshin/` (registry + per-repo heartbeats); never calls a tracker. `buildStatusPayload()` (liveness: running/stale/stopped) is the unit-testable core. The served page has **two view modes** (header toggle, localStorage-persisted): **Pro** (status tiles) and **🥷 Bunshin** (pixel-art canvas dojos — loop ninja casts a shadow clone per goal, sub-clone per gate). `sceneFor(repo)` is the pure state→scene mapper, unit-tested in Node and inlined into the page via `.toString()` (single source of truth). |
-| `src/util.js` | Helpers: `CONFIG_FILENAME`, `ORCHESTRATOR_CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`, plus the configurable gate pipeline — `resolveGates(config)` (normalizes `gates.steps` → ordered built-in/`command`/`skill` steps; absent ⇒ `implement → verify → review`), `BUILTIN_GATES` (now incl. the opt-in `triage` + `readme`), `DEFAULT_GATE_STEPS`, plus orchestrator — `resolveRepositories(config)` (validates/normalizes the `repositories` array; unit-tested in `test/orchestrator.test.js`). |
+| `src/util.js` | Helpers: `CONFIG_FILENAME`, `ORCHESTRATOR_CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`, plus the configurable gate pipeline — `resolveGates(config)` (normalizes `gates.steps` → ordered built-in/`command`/`skill` steps; absent ⇒ `implement → verify → review`), `BUILTIN_GATES` (now incl. the opt-in `triage` + `readme` + `claude-md`), `DEFAULT_GATE_STEPS`, plus orchestrator — `resolveRepositories(config)` (validates/normalizes the `repositories` array; unit-tested in `test/orchestrator.test.js`). |
 | `template/driver.md` | The autonomous `/loop` driver procedure (the pipeline). |
 | `template/setup.md` | The **interactive** setup guide the `setup` session follows (asks the user, fills the config, installs MCPs). |
-| `template/gates/{implement,verify,review,triage,readme}.md` | The built-in **gate presets** — one file per `BUILTIN_GATES` name. `implement`/`verify`/`review` are the agent briefs the driver dispatches; `triage` (orchestrator-only) is a preset the driver follows itself; `readme` is an opt-in adversarial docs gate (BLOCKs when a user-facing change didn't update `README.md`). Referenced from `driver.md` as `gates/<name>.md`. |
+| `template/gates/{implement,verify,review,triage,readme,claude-md}.md` | The built-in **gate presets** — one file per `BUILTIN_GATES` name. `implement`/`verify`/`review` are the agent briefs the driver dispatches; `triage` (orchestrator-only) is a preset the driver follows itself; `readme` is an opt-in adversarial docs gate (BLOCKs when a user-facing change didn't update `README.md`); `claude-md` is the sibling opt-in docs gate for `CLAUDE.md` (BLOCKs when a change to architecture/conventions/LOCKED decisions didn't update `CLAUDE.md`). Referenced from `driver.md` as `gates/<name>.md`. |
 | `template/bunshin.config.template.json` | Placeholder single-repo config (`{{TOKENS}}` filled by `init`/`setup`). |
 | `template/bunshin.orchestrator.template.json` | Placeholder **orchestrator** config (BUN-7): adds the `repositories` array + a triage-led `gates.steps`; written by `init --orchestrator`. |
 | `assets/bunshin-banner.svg` | Original themed README banner (no copyrighted imagery). |
@@ -222,3 +222,11 @@ behaviour.
   Documented in `template/driver.md` (new gate section) + README's built-in-gate table; covered by
   `test/gates.test.js` (resolvable/opt-in) and the `test/gates-layout.test.js` layout guard. This repo's
   own `gates.steps` left as-is.
+- Opt-in `claude-md` docs gate (BUN-11): sibling of `readme` — new built-in gate `claude-md` (added to
+  `BUILTIN_GATES` in `src/util.js`, NOT to `DEFAULT_GATE_STEPS`) with a self-contained adversarial preset
+  `template/gates/claude-md.md` — it BLOCKs when a change that alters architecture/conventions/LOCKED
+  decisions didn't update `CLAUDE.md`, and APPROVEs changes that touch nothing `CLAUDE.md` documents.
+  Opt-in: enabled by naming `"claude-md"` in `gates.steps`, so existing repos/the default pipeline are
+  unchanged. Documented in `template/driver.md` (new gate section) + README's built-in-gate table;
+  covered by `test/gates.test.js` (resolvable/opt-in) and the `test/gates-layout.test.js` layout guard.
+  This repo's own `gates.steps` left as-is (`["implement","review"]`).

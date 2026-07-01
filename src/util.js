@@ -138,7 +138,10 @@ function buildSetupCommand(agent, prompt) {
 // `readme` is an OPT-IN adversarial docs gate: it BLOCKS when a user-facing change didn't update
 // README.md (see template/gates/readme.md). Like `triage`, it is a valid step name but is NOT in the
 // default pipeline — a repo opts in by naming it in `gates.steps`.
-const BUILTIN_GATES = Object.freeze(['triage', 'implement', 'verify', 'review', 'readme']);
+// `claude-md` is the sibling OPT-IN docs gate for `CLAUDE.md`: it BLOCKS when a change that alters
+// architecture/conventions/LOCKED decisions didn't update CLAUDE.md (see template/gates/claude-md.md).
+// Also opt-in, also NOT in the default pipeline.
+const BUILTIN_GATES = Object.freeze(['triage', 'implement', 'verify', 'review', 'readme', 'claude-md']);
 // Absent/empty ⇒ this default, so existing (single-repo) repos are unchanged.
 const DEFAULT_GATE_STEPS = Object.freeze(['implement', 'verify', 'review']);
 
