@@ -201,6 +201,53 @@ function resolveGates(config, opts) {
   return steps.map((entry, index) => normalizeGateStep(entry, index, ctx));
 }
 
+// --- Configurable "open a PR" step (PR mode) ---------------------------------
+// In `merge.mode: "pr"` the driver opens a GitHub PR from the goal branch. By default it
+// runs the built-in `gh pr create --base <base> --head <branch> --fill`. Some teams open
+// PRs through their own tooling — e.g. a custom Claude `/open-pr` slash-command that applies
+// their PR template. `merge.openPr` lets them plug that in: `{ "skill": "/open-pr" }` (an
+// agent skill / slash command the driver invokes) or `{ "command": "..." }` (a shell command).
+// Absent/empty ⇒ the built-in default (unchanged behavior). `resolveOpenPr` is pure (no fs/
+// spawn) so it is unit-testable; the driver reads the same `merge.openPr` block. The resolved
+// skill/command is responsible for creating the PR AND printing the PR URL (the driver records
+// `PR: <url>` on the issue). Mirrors the `command`/`skill` shape of custom gate steps.
+function resolveOpenPr(config) {
+  const openPr = config && config.merge && config.merge.openPr;
+  // Absent / null ⇒ the built-in default.
+  if (openPr == null) return { kind: 'default', value: null };
+  if (typeof openPr !== 'object' || Array.isArray(openPr)) {
+    throw new Error(
+      `Invalid merge.openPr in ${CONFIG_FILENAME}: expected an object ` +
+        `{"skill": "..."} or {"command": "..."}, got ${Array.isArray(openPr) ? 'array' : typeof openPr}.`
+    );
+  }
+  // Read a key: absent/null/empty-string ⇒ unset (the config uses "" as the neutral value,
+  // like autoMerge.label / commands.install); a present non-string value is a mistake ⇒ throw.
+  const pick = (key) => {
+    if (!Object.prototype.hasOwnProperty.call(openPr, key) || openPr[key] == null) return null;
+    const v = openPr[key];
+    if (typeof v !== 'string') {
+      throw new Error(
+        `Invalid merge.openPr.${key} in ${CONFIG_FILENAME}: expected a string ` +
+          `(a ${key === 'skill' ? 'skill / slash-command name' : 'shell command'}), got ${Array.isArray(v) ? 'array' : typeof v}.`
+      );
+    }
+    const trimmed = v.trim();
+    return trimmed || null;
+  };
+  const skill = pick('skill');
+  const command = pick('command');
+  if (skill && command) {
+    throw new Error(
+      `Invalid merge.openPr in ${CONFIG_FILENAME}: set EITHER "skill" OR "command", not both.`
+    );
+  }
+  if (skill) return { kind: 'skill', value: skill };
+  if (command) return { kind: 'command', value: command };
+  // Empty-object / all keys blank ⇒ the built-in default.
+  return { kind: 'default', value: null };
+}
+
 // --- Orchestrator repositories -----------------------------------------------
 // In orchestrator mode one board's goals span MANY repositories, listed under
 // `repositories` in the orchestrator config. `resolveRepositories` validates and
@@ -350,6 +397,7 @@ module.exports = {
   BUILTIN_GATES,
   DEFAULT_GATE_STEPS,
   resolveGates,
+  resolveOpenPr,
   resolveRepositories,
   resolveRepoGates,
   resolveRepoCommands,

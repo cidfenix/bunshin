@@ -298,9 +298,15 @@ Needs a git remote (`merge.remote`, default `origin`) and GitHub access — an a
    if there's no remote-tracking base). Re-run `commands.gateChecks`. Fail → PARK
    `Merge re-gate failed — <short error>`.
 2. Push the branch: `git -C <worktree> push -u <merge.remote> <git.branchPrefix><N>-<slug>`.
-3. Open a PR from the branch into `<git.baseBranch>` — `gh pr create --base <git.baseBranch> --head
-   <branch> --fill` (or the GitHub MCP). Title + body from the goal text and the implement agent's
-   summary.
+3. Open a PR from the branch into `<git.baseBranch>`:
+   - **If `merge.openPr` is set** (a `{ "skill": "..." }` slash-command/skill or `{ "command": "..." }`
+     shell command — set EITHER, not both; blank/absent ⇒ default), open the PR by invoking that
+     skill/command instead. It applies the user's own PR flow/template and is given the branch, the base
+     branch (`<git.baseBranch>`), and the goal context. It is RESPONSIBLE for creating the PR AND for
+     printing/returning the PR URL — capture that URL for step 4. If it fails (non-zero exit / no URL) →
+     PARK `Open-PR step failed — <short error>`.
+   - **Otherwise (default):** `gh pr create --base <git.baseBranch> --head <branch> --fill` (or the
+     GitHub MCP). Title + body from the goal text and the implement agent's summary.
 4. Transition the issue **→ In Review**, comment `PR: <url>`. Remove the worktree (the branch now lives
    on the remote) — the remote branch + PR persist. **Do NOT merge here**; the reaper does, once the
    `merge.autoMerge` gate is met.

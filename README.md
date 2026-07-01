@@ -289,7 +289,10 @@ drop `verify`, or splice in custom steps via `gates.steps`
    - **`pr`**: push the branch, open a GitHub **Pull Request**, card → **In Review**. A review reaper
      then auto-merges it once your gate is met — **≥ N approvals and/or a label** (optionally green
      checks) — or, with the gate off, simply marks the card **Done** after a human merges. Needs a
-     remote + the `gh` CLI or a GitHub MCP.
+     remote + the `gh` CLI or a GitHub MCP. The PR-open step is **pluggable** (`merge.openPr`): by
+     default Bunshin runs `gh pr create --fill`, but you can point it at your own flow — a custom
+     `/open-pr` slash command / skill (`{ "skill": "/open-pr" }`) or a shell command
+     (`{ "command": "..." }`) that applies your PR template and prints the PR URL.
 
    Any gate failure → **Blocked** with the reason (branch kept).
 

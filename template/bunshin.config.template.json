@@ -59,6 +59,11 @@
     "mode": "auto",
     "remote": "origin",
     "prMethod": "squash",
+    "openPr": {
+      "$comment": "OPTIONAL (mode='pr' only). How the driver OPENS the PR. Absent/empty ⇒ the built-in default `gh pr create --base <baseBranch> --head <branch> --fill`. To use your own PR flow (e.g. a custom Claude `/open-pr` slash command that applies your PR template), set EITHER \"skill\" (an agent skill / slash command the driver invokes) OR \"command\" (a shell command) — not both. It receives the branch, the base branch, and the goal context; it is RESPONSIBLE for creating the PR AND printing/returning the PR URL (the driver records `PR: <url>` on the issue). Example skill: {\"skill\": \"/open-pr\"}. Example command: {\"command\": \"gh pr create --base $BASE --head $BRANCH --template .github/pr.md\"}. Delete this block to keep the default.",
+      "skill": "",
+      "command": ""
+    },
     "autoMerge": {
       "$comment": "When mode='pr', an open PR auto-merges once ALL the gates you set here pass. Disable a gate with its neutral value: approvals 0, label \"\". With BOTH disabled (approvals 0 AND label \"\"), Bunshin opens the PR but NEVER auto-merges — a human merges on GitHub and the reaper just moves the card to Done once it sees the merge.",
       "approvals": 1,
