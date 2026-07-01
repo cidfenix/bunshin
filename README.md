@@ -278,7 +278,11 @@ drop `verify`, or splice in custom steps via `gates.steps`
 1. The driver takes the first **Pending** card, moves it to **In Progress**, and cuts an isolated
    worktree off the base branch (`N` = the goal's id — Trello card `idShort` or Jira issue key).
 2. **`implement` (deterministic):** an implement agent codes the goal TDD-style; the driver runs your
-   `install` then `gateChecks` (typecheck/build/test).
+   `install` then `gateChecks` (typecheck/build/test). The **commit step is pluggable** (`commit`): by
+   default the agent makes one scoped Conventional-Commit `git commit`, but you can point it at your own
+   flow — a custom `/commit` slash command / skill (`{ "skill": "/commit" }`) or a shell command
+   (`{ "command": "..." }`) that stages + commits the goal's work your way (still one commit, only the
+   intended files, keeping the `Co-Authored-By:` trailer).
 3. **`verify` (behavioral, web-only):** a verify agent boots your dev server, exercises the feature with
    Playwright, asserts it renders with no new console errors, and commits a screenshot. (Dropped by
    config-only/CLI repos.)

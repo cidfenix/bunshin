@@ -219,6 +219,13 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
   must never COMMIT install churn (see its brief); if it landed in the goal commit, that is a
   `review` gate BLOCK.
 - Any non-zero exit (or the agent reporting it could not implement cleanly) → PARK.
+- COMMIT step: the implement agent commits the goal's work on the branch. By default it makes ONE
+  Conventional-Commit `git commit` (explicit paths only; never a `neverCommit.paths` file; keeps the
+  `Co-Authored-By:` trailer). **If the config sets a top-level `commit` block** (`{ "skill": "..." }`
+  slash-command/skill or `{ "command": "..." }` shell command — set EITHER, not both; blank/absent ⇒
+  default), the agent commits via that skill/command instead (the team's own commit flow). Either way
+  the result must be ONE commit that stages only the intended feature files + the CLAUDE.md status
+  line, no `neverCommit.paths`, with the trailer intact (see `gates/implement.md`).
 
 ### Built-in gate `verify` — behavioral (Playwright) — WEB-ONLY
 - **Omit this gate** for config-only/CLI/Android repos with no web UI to smoke-test (leave it out of

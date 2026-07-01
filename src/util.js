@@ -201,6 +201,51 @@ function resolveGates(config, opts) {
   return steps.map((entry, index) => normalizeGateStep(entry, index, ctx));
 }
 
+// --- Configurable "skill or command" step shape ------------------------------
+// Several optional config blocks let a repo swap a built-in default step for their OWN
+// agent skill / slash-command OR a shell command: `merge.openPr` (how to open a PR — see
+// resolveOpenPr) and `commit` (how the implement gate commits the goal's work — see
+// resolveCommit). They share ONE shape: an object accepting EITHER a "skill" (an agent
+// slash-command the driver invokes) OR a "command" (a shell command) — not both. Absent /
+// null / all-keys-blank ⇒ the built-in default (the config uses "" as the neutral value
+// throughout, like autoMerge.label / commands.install). This pure normalizer is the single
+// source of truth for that shape; `label` is the config path used in error messages so a
+// bad value points at the right key (e.g. "merge.openPr" / "commit").
+function resolveSkillOrCommand(block, label) {
+  // Absent / null ⇒ the built-in default.
+  if (block == null) return { kind: 'default', value: null };
+  if (typeof block !== 'object' || Array.isArray(block)) {
+    throw new Error(
+      `Invalid ${label} in ${CONFIG_FILENAME}: expected an object ` +
+        `{"skill": "..."} or {"command": "..."}, got ${Array.isArray(block) ? 'array' : typeof block}.`
+    );
+  }
+  // Read a key: absent/null/empty-string ⇒ unset; a present non-string value is a mistake ⇒ throw.
+  const pick = (key) => {
+    if (!Object.prototype.hasOwnProperty.call(block, key) || block[key] == null) return null;
+    const v = block[key];
+    if (typeof v !== 'string') {
+      throw new Error(
+        `Invalid ${label}.${key} in ${CONFIG_FILENAME}: expected a string ` +
+          `(a ${key === 'skill' ? 'skill / slash-command name' : 'shell command'}), got ${Array.isArray(v) ? 'array' : typeof v}.`
+      );
+    }
+    const trimmed = v.trim();
+    return trimmed || null;
+  };
+  const skill = pick('skill');
+  const command = pick('command');
+  if (skill && command) {
+    throw new Error(
+      `Invalid ${label} in ${CONFIG_FILENAME}: set EITHER "skill" OR "command", not both.`
+    );
+  }
+  if (skill) return { kind: 'skill', value: skill };
+  if (command) return { kind: 'command', value: command };
+  // Empty-object / all keys blank ⇒ the built-in default.
+  return { kind: 'default', value: null };
+}
+
 // --- Configurable "open a PR" step (PR mode) ---------------------------------
 // In `merge.mode: "pr"` the driver opens a GitHub PR from the goal branch. By default it
 // runs the built-in `gh pr create --base <base> --head <branch> --fill`. Some teams open
@@ -213,39 +258,24 @@ function resolveGates(config, opts) {
 // `PR: <url>` on the issue). Mirrors the `command`/`skill` shape of custom gate steps.
 function resolveOpenPr(config) {
   const openPr = config && config.merge && config.merge.openPr;
-  // Absent / null ⇒ the built-in default.
-  if (openPr == null) return { kind: 'default', value: null };
-  if (typeof openPr !== 'object' || Array.isArray(openPr)) {
-    throw new Error(
-      `Invalid merge.openPr in ${CONFIG_FILENAME}: expected an object ` +
-        `{"skill": "..."} or {"command": "..."}, got ${Array.isArray(openPr) ? 'array' : typeof openPr}.`
-    );
-  }
-  // Read a key: absent/null/empty-string ⇒ unset (the config uses "" as the neutral value,
-  // like autoMerge.label / commands.install); a present non-string value is a mistake ⇒ throw.
-  const pick = (key) => {
-    if (!Object.prototype.hasOwnProperty.call(openPr, key) || openPr[key] == null) return null;
-    const v = openPr[key];
-    if (typeof v !== 'string') {
-      throw new Error(
-        `Invalid merge.openPr.${key} in ${CONFIG_FILENAME}: expected a string ` +
-          `(a ${key === 'skill' ? 'skill / slash-command name' : 'shell command'}), got ${Array.isArray(v) ? 'array' : typeof v}.`
-      );
-    }
-    const trimmed = v.trim();
-    return trimmed || null;
-  };
-  const skill = pick('skill');
-  const command = pick('command');
-  if (skill && command) {
-    throw new Error(
-      `Invalid merge.openPr in ${CONFIG_FILENAME}: set EITHER "skill" OR "command", not both.`
-    );
-  }
-  if (skill) return { kind: 'skill', value: skill };
-  if (command) return { kind: 'command', value: command };
-  // Empty-object / all keys blank ⇒ the built-in default.
-  return { kind: 'default', value: null };
+  return resolveSkillOrCommand(openPr, 'merge.openPr');
+}
+
+// --- Configurable "commit the work" step (implement gate) --------------------
+// By default the implement gate stages the goal's changed files with explicit paths and
+// makes ONE Conventional-Commit `git commit` (message ending with the `Co-Authored-By:`
+// trailer). Some teams commit through their own tooling — e.g. a custom Claude `/commit`
+// slash-command. The top-level `commit` block lets them plug that in: `{ "skill": "/commit" }`
+// (an agent skill / slash command the implement gate invokes) or `{ "command": "..." }` (a
+// shell command). Absent/blank ⇒ the built-in default (unchanged behavior). `resolveCommit`
+// is pure (no fs/spawn) so it is unit-testable; the implement gate reads the same `commit`
+// block. The resolved skill/command is RESPONSIBLE for staging + committing the goal's work on
+// the current branch, and MUST still honour the implement gate's invariants: ONE commit that
+// includes only the intended feature files + the CLAUDE.md status line, never stages a
+// `neverCommit.paths` file, and keeps the `Co-Authored-By:` trailer. Mirrors `resolveOpenPr`.
+function resolveCommit(config) {
+  const commit = config && config.commit;
+  return resolveSkillOrCommand(commit, 'commit');
 }
 
 // --- Orchestrator repositories -----------------------------------------------
@@ -398,6 +428,7 @@ module.exports = {
   DEFAULT_GATE_STEPS,
   resolveGates,
   resolveOpenPr,
+  resolveCommit,
   resolveRepositories,
   resolveRepoGates,
   resolveRepoCommands,

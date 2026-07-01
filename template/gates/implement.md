@@ -44,6 +44,14 @@ locked decisions when a goal calls for it.
    or any churn to a `neverCommit.paths` file appears in `git status`, run
    `git checkout -- <those paths>` BEFORE committing. Verify with `git show --stat HEAD` that only
    intended files landed.
+   **Custom commit step (config `commit`):** if the config has a top-level `commit` block set to
+   `{ "skill": "<name>" }` (an agent skill / slash command, e.g. a Claude `/commit`) or
+   `{ "command": "<shell>" }`, DON'T run the plain `git add`/`git commit` above — instead invoke that
+   skill/command to stage + commit the work (it applies the team's own commit flow). It is still bound
+   by EVERY invariant above: it must produce exactly ONE commit that includes only the intended feature
+   files + the CLAUDE.md status line, stages no `neverCommit.paths` file, and keeps the
+   `Co-Authored-By:` trailer. After it runs, still verify with `git show --stat HEAD`. Absent/blank
+   `commit` ⇒ commit directly as described above (the default).
 6. Append a one-line entry to the CLAUDE.md "Current status / Next up" section describing what you
    shipped (so the canonical log stays accurate).
 
