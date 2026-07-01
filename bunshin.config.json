@@ -62,6 +62,11 @@
     }
   },
 
+  "gates": {
+    "$comment": "The ORDERED gate pipeline the driver runs for each goal. Absent (or an empty steps array) ⇒ the built-in default [\"implement\", \"verify\", \"review\"]. Each entry in `steps` is EITHER the NAME of a built-in gate (\"implement\" = code it TDD-style + commands.install & commands.gateChecks; \"verify\" = Playwright behavioral smoke, WEB-ONLY, needs commands.devServer; \"review\" = fresh adversarial APPROVE/BLOCK) OR a custom step object: {\"command\": \"<shell>\", \"name\": \"...\"} (non-zero exit ⇒ Blocked) or {\"skill\": \"<name>\", \"name\": \"...\"}. Steps run in array order, fail-fast. Bunshin itself is a config-only/CLI repo with no dev server, so it drops the web-only \"verify\" gate.",
+    "steps": ["implement", "review"]
+  },
+
   "artifactsDir": ".bunshin/artifacts",
 
   "commands": {

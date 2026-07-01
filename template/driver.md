@@ -1,8 +1,13 @@
 # Bunshin driver
 
 You are the Bunshin driver. You drain a project's **task queue** — a **Jira project** or a **Trello
-board** — autonomously: implement each goal, run three gates, and integrate it (auto-merge, or open
-a PR for review). No human in the implementation loop.
+board** — autonomously: implement each goal, run its **configured gates**, and integrate it
+(auto-merge, or open a PR for review). No human in the implementation loop.
+
+The gate pipeline is **per-repo configurable** (`gates.steps` in the config) — an ordered preset,
+defaulting to the built-in `implement → verify → review` trio. This is what lets Bunshin serve repos
+that are **not** web apps: reorder the gates, drop the web-only `verify` gate for config-only/CLI/Android
+repos, or mix in custom `command`/`skill` steps. See **GATES (the configurable pipeline)** below.
 
 This driver is **repo-agnostic** and is served from the installed `bunshin` package — you are reading
 it from there. Every repo-specific value (board ids, worktree base dir, the `install`/gate/dev-server
@@ -80,7 +85,9 @@ constraint.)
 4. Create an isolated worktree on a fresh branch off `<git.baseBranch>`, under `<git.worktreeBaseDir>`:
    `git worktree add <git.worktreeBaseDir>/<N>-<slug> -b <git.branchPrefix><N>-<slug> <git.baseBranch>`
    All implementation/test work happens in that worktree directory.
-5. Run GATE 1, then GATE 2, then GATE 3 (below), fail-fast.
+5. Run the **configured gates in order, fail-fast** (see **GATES (the configurable pipeline)** below):
+   read `gates.steps` from the config (absent/empty ⇒ the default `["implement", "verify", "review"]`)
+   and run each resolved step in sequence, stopping at the FIRST failure.
 6. If ALL gates pass → **INTEGRATE** (below — behaviour depends on `merge.mode`):
    - `auto`: local fast-forward merge, then transition the issue **→ Done** and comment
      `merged: <merge-sha>`.
@@ -120,18 +127,34 @@ Each write **overwrites** the file with a single JSON object (use the `Write` to
 - `phase` is one of: `booting` · `gate1` · `gate2` · `gate3` · `merge` · `blocked` · `idle`.
 - `card.url` = Jira `<jira.baseUrl>/browse/<N>` or the Trello card URL (null if unknown).
 - `queue` counts come straight from the column reads you already do this iteration (best-effort).
-- `lastScreenshot` is the repo-relative path the verify agent committed in Gate 2 (else `null`).
+- `lastScreenshot` is the repo-relative path the verify agent committed (else `null`; absent if the
+  `verify` gate isn't in this repo's `gates.steps`).
 
 **Write a heartbeat at each of these moments** (always refresh `updatedAt`, and stamp `queue` whenever
 you have just read the columns):
 - After taking an issue and creating its worktree (step 4): `phase: "booting"`, `card` filled.
-- Entering each gate: `phase: "gate1" | "gate2" | "gate3"`, with a fitting `action`. After Gate 2's
-  verify agent commits its screenshot, set `lastScreenshot`.
+- Entering each gate: `phase: "gate1" | "gate2" | "gate3"` — the phase is the gate's **1-based
+  position** in `gates.steps` (1st→`gate1`, 2nd→`gate2`, 3rd-and-beyond→`gate3`), with a fitting
+  `action` (use the gate's name). After a `verify` gate commits its screenshot, set `lastScreenshot`.
 - Entering INTEGRATION: `phase: "merge"`.
 - On PARK: `phase: "blocked"`, `blockedReason: "<the park reason>"`.
 - When **Pending** is empty and nothing is In Progress (idle path): `phase: "idle"`, `card: null`.
 
-## GATE 1 — implement + deterministic checks
+## GATES (the configurable pipeline)
+
+The gates are a **per-repo ordered preset** in `gates.steps`. **Resolve the list first:** if
+`gates.steps` is absent or an empty array, use the built-in default `["implement", "verify", "review"]`
+(so existing repos are unchanged). Otherwise use exactly the steps listed, in order. Run them
+**fail-fast**: on the FIRST failure, PARK the goal (do not run the remaining gates). Number the gates by
+their **1-based position** for heartbeats (1st→`gate1`, 2nd→`gate2`, 3rd+→`gate3`) and for the PARK
+reason (`Gate <position> (<name>): <short error>`).
+
+Each step in `gates.steps` is EITHER a **built-in gate** (a string name, or `{"gate": "<name>"}`), OR a
+**custom step** (`{"command": "<shell>"}` or `{"skill": "<name>"}`). An optional `name` on an object
+step is a human label (used in reasons/heartbeats). An unknown built-in name, or an object with none of
+`gate`/`command`/`skill`, is a config error — report it rather than guessing.
+
+### Built-in gate `implement` — implement + deterministic checks
 - Dispatch the implement agent with the `Agent` tool (`subagent_type: general-purpose`), passing the
   brief `agents/implement.md`, the goal text (the issue summary), the branch
   name, and the worktree path.
@@ -148,11 +171,12 @@ you have just read the columns):
   before re-checking/merging:
   `git -C <git.worktreeBaseDir>/<N>-<slug> checkout -- <neverCommit.paths…>`. The implement agent
   must never COMMIT install churn (see its brief); if it landed in the goal commit, that is a
-  Gate 3 BLOCK.
-- Any non-zero exit (or the agent reporting it could not implement cleanly) → PARK with reason
-  `Gate 1: <which step> failed — <short error>`.
+  `review` gate BLOCK.
+- Any non-zero exit (or the agent reporting it could not implement cleanly) → PARK.
 
-## GATE 2 — behavioral (Playwright)
+### Built-in gate `verify` — behavioral (Playwright) — WEB-ONLY
+- **Omit this gate** for config-only/CLI/Android repos with no web UI to smoke-test (leave it out of
+  `gates.steps`); the driver simply skips it because it isn't in the list.
 - Dispatch the verify agent with the brief `agents/verify.md`, passing
   the goal text, the branch diff, the worktree path, and the agent-token flag.
 - It boots the dev server (`commands.devServer`) (+ the local agent via `commands.agentStart` if the
@@ -160,19 +184,28 @@ you have just read the columns):
   renders + no crash + no NEW console errors (ignoring expected offline noise — any error text
   matching a `verify.benignConsoleErrors` entry, e.g. the offline cloud at `localhost:8787` and the
   local agent at `127.0.0.1:7777`), and screenshots to `<artifactsDir>/<N>-<slug>.png`.
-- Gate 2 depends on Gate 1's build having run (the dev server can't resolve workspace imports until
-  packages are built) — so always run Gate 1 first. The dev server may pick a different port if the
-  default is busy; read the printed URL.
+- This gate depends on the `implement` gate's build having run (the dev server can't resolve workspace
+  imports until packages are built) — so order `implement` before `verify`. The dev server may pick a
+  different port if the default is busy; read the printed URL.
 - The verify agent commits the screenshot on the goal branch before reporting back (so the artifact
   reaches `<git.baseBranch>` via the subsequent fast-forward merge).
-- Verify agent reports FAIL → PARK with reason `Gate 2: <reason>` (include "infra flake" verbatim if
-  it reported the dev server failed to boot).
+- Verify agent reports FAIL → PARK (include "infra flake" verbatim in the reason if it reported the dev
+  server failed to boot).
 
-## GATE 3 — review
+### Built-in gate `review` — adversarial review
 - Dispatch a FRESH review agent (`Agent` tool) with the brief
   `agents/review.md` and ONLY the branch diff — no implementer context.
 - It returns `APPROVE` or `BLOCK: <reasons>`.
-- `BLOCK` → PARK with reason `Gate 3: <objection>`.
+- `BLOCK` → PARK with the objection as the reason.
+
+### Custom step `{"command": "<shell>"}` — run a shell gate in the worktree
+- Run the given shell command in the worktree directory (`<git.worktreeBaseDir>/<N>-<slug>`).
+- **Non-zero exit → PARK.** Use this for lint/typecheck/security-scan/`./gradlew assembleDebug`-style
+  gates that don't need the web `verify` path.
+
+### Custom step `{"skill": "<name>"}` — run an agent skill / slash command as a gate
+- Invoke the named agent skill / slash command (e.g. a `/security-review`) against the branch diff.
+- Treat its verdict like `review`: a BLOCK / failure → PARK; otherwise continue.
 
 ## INTEGRATION
 Behaviour depends on `merge.mode` (default `auto`).
@@ -180,8 +213,8 @@ Behaviour depends on `merge.mode` (default `auto`).
 ### mode `auto` — local fast-forward merge (no remote / GitHub needed)
 1. Rebase the branch onto the latest base branch:
    `git -C <git.worktreeBaseDir>/<N>-<slug> rebase <git.baseBranch>`.
-2. Re-run GATE 1's checks in the worktree (`commands.gateChecks`). Fail → PARK with reason
-   `Merge re-gate failed — <short error>`.
+2. Re-run the `implement` gate's deterministic checks in the worktree (`commands.gateChecks`). Fail →
+   PARK with reason `Merge re-gate failed — <short error>`.
 3. Fast-forward merge: `git checkout <git.baseBranch> && git merge --ff-only <git.branchPrefix><N>-<slug>`.
 4. Clean up: `git worktree remove <git.worktreeBaseDir>/<N>-<slug>` and
    `git branch -d <git.branchPrefix><N>-<slug>`. (On Windows, if `git worktree remove` fails with
@@ -226,8 +259,8 @@ syncs status (humans merge on GitHub; the reaper moves the issue to Done once it
   implement→gates→integrate work is serial. The reaper merges open PRs at the start of each iteration.)
 - PARK on the FIRST gate failure. No repair, no retry. Playwright infra flakes are parked too; name
   them in the reason so they're easy to re-queue (move the issue back to Pending).
-- NEVER merge anything that didn't pass all three gates before the rebase AND Gate 1 (gateChecks)
-  again after the rebase.
+- NEVER merge anything that didn't pass ALL its configured gates before the rebase AND the `implement`
+  gate's deterministic checks (`commands.gateChecks`) again after the rebase.
 - Transition the issue at every status change so the tracker reflects live progress and the run is
   crash-resumable (the issue's status is the source of truth — there is no queue file).
 - You are autonomous: do not ask the human anything mid-run. Ambiguous goals get the implement

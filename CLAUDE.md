@@ -4,8 +4,8 @@
 
 Bunshin is a **standalone, zero-dependency CLI** that runs an **autonomous goal loop for Claude Code**,
 driven by your **Trello board or Jira project**: you stack lightweight goals (cards / issues), and
-Bunshin implements each one fully autonomously — code → three gates → auto-merge — with **no human in
-the review loop**. It is
+Bunshin implements each one fully autonomously — code → a **configurable gate pipeline** → auto-merge —
+with **no human in the review loop**. It is
 **process-only**: there is no orchestrator daemon, just a markdown pipeline that a Claude Code `/loop`
 session follows, plus a thin CLI.
 
@@ -57,6 +57,13 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 4. **The tracker IS the queue.** A goal is one card/issue; status is encoded by which column it's in
    (Pending → In Progress → Blocked → Done). No queue file — the run is crash-resumable from the
    tracker. Execution is **serial** and parks on the **first** gate failure (no auto-repair/retry).
+   The **gate pipeline is a per-repo configurable preset** (`gates.steps` in the config; absent/empty ⇒
+   the built-in default `implement → verify → review`, so existing repos are unchanged): an ordered list
+   of built-in gates (`implement`/`verify`/`review`) and/or custom `command`/`skill` steps. The driver
+   runs the resolved list in order, fail-fast. This lets Bunshin serve repos that are **not** web apps —
+   drop the web-only `verify` gate for config-only/CLI/Android repos, or mix in your own gates. Pure
+   resolver: `resolveGates()` in `src/util.js` (unit-tested in `test/gates.test.js`); the driver reads
+   the same `gates.steps`. (Reversed the earlier hard-coded three-gate pipeline.)
    The tracker is pluggable via `provider.kind` (**`jira`** default, or **`trello`**): a
    provider-adapter table in `template/driver.md` maps each queue op (list columns, read a column,
    move a goal, comment) to Trello (`mcp__trello__*`) vs a Jira MCP (transitions/JQL); columns come
@@ -82,7 +89,7 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 | `src/run.js` | `run` — guards (git repo · config present · clean tree · agent CLI on PATH), build the prompt pointing at the package driver, `spawn` the selected agent CLI (`resolveAgent`/`buildLaunchCommand` — claude `/loop` vs `codex exec`). Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. |
 | `src/registry.js` | The shared per-user home `~/.bunshin/` that relates every running repo: `repoIdFor()`, `register()`, `markStopped()`, `readAll()`, atomic writes. Keyed by `repoId` = sha256(repo path)[:12]. |
 | `src/watch.js` | `watch` — zero-dep localhost dashboard (built-in `http`). Pure file aggregator over `~/.bunshin/` (registry + per-repo heartbeats); never calls a tracker. `buildStatusPayload()` (liveness: running/stale/stopped) is the unit-testable core. The served page has **two view modes** (header toggle, localStorage-persisted): **Pro** (status tiles) and **🥷 Bunshin** (pixel-art canvas dojos — loop ninja casts a shadow clone per goal, sub-clone per gate). `sceneFor(repo)` is the pure state→scene mapper, unit-tested in Node and inlined into the page via `.toString()` (single source of truth). |
-| `src/util.js` | Helpers: `CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`. |
+| `src/util.js` | Helpers: `CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`, plus the configurable gate pipeline — `resolveGates(config)` (normalizes `gates.steps` → ordered built-in/`command`/`skill` steps; absent ⇒ `implement → verify → review`), `BUILTIN_GATES`, `DEFAULT_GATE_STEPS`. |
 | `template/driver.md` | The autonomous `/loop` driver procedure (the pipeline). |
 | `template/setup.md` | The **interactive** setup guide the `setup` session follows (asks the user, fills the config, installs MCPs). |
 | `template/agents/{implement,verify,review}.md` | The three agent briefs the driver dispatches. |
@@ -93,12 +100,15 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 
 ## How a goal flows (the pipeline, in brief)
 
-The driver takes the top Pending card, cuts an isolated **git worktree** off the base branch, then:
-**Gate 1** (implement agent codes it TDD-style; run `install` + `gateChecks`) → **Gate 2** (verify
-agent boots the dev server, Playwright-smokes the feature, commits a screenshot to `artifactsDir`) →
-**Gate 3** (fresh adversarial review agent → APPROVE/BLOCK) → **merge** (rebase, re-run `gateChecks`,
-fast-forward, card → Done). Any failure → card → Blocked with a reason; branch kept. Full detail lives
-in `template/driver.md` — read it before changing pipeline behaviour.
+The driver takes the top Pending card, cuts an isolated **git worktree** off the base branch, then runs
+the repo's **configured gate pipeline** (`gates.steps`; default `implement → verify → review`) in order,
+fail-fast. The built-in gates: **`implement`** (agent codes it TDD-style; run `install` + `gateChecks`)
+→ **`verify`** (verify agent boots the dev server, Playwright-smokes the feature, commits a screenshot
+to `artifactsDir` — web-only, omit for config-only/CLI repos) → **`review`** (fresh adversarial review
+agent → APPROVE/BLOCK). A repo can reorder these, drop `verify`, or add custom `command`/`skill` gates.
+Then **merge** (rebase, re-run `gateChecks`, fast-forward, card → Done). Any failure → card → Blocked
+with a reason; branch kept. Full detail lives in `template/driver.md` — read it before changing pipeline
+behaviour.
 
 ---
 
@@ -152,3 +162,10 @@ in `template/driver.md` — read it before changing pipeline behaviour.
 - README now documents the pluggable agent runtime (`agent.kind`: Claude Code default / Codex): new
   "Agent runtime" section + generalized badges, Requirements, and setup/run prose (Claude `/loop` cadence
   vs `codex exec` once-per-run needing an external scheduler). Docs only — no source/behavior changes.
+- Configurable gate pipeline (`gates.steps`, BUN-6): replaced the hard-coded implement→verify→review trio
+  with a per-repo ordered preset — reorder gates, drop the web-only `verify` gate for config-only/CLI/Android
+  repos, or mix in custom `command`/`skill` steps. Pure `resolveGates()` + `BUILTIN_GATES`/`DEFAULT_GATE_STEPS`
+  in `src/util.js` (unit-tested in `test/gates.test.js`); `template/driver.md` reads `gates.steps` and runs
+  them in order, fail-fast; new `gates` block + `$comment` docs in the template config. Absent ⇒ the old
+  default, so existing repos are unchanged. Reverses LOCKED decision 4's fixed-gates assumption. Bunshin's
+  own config now drops `verify` (it's a CLI repo, no dev server).

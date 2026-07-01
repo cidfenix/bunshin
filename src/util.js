@@ -119,6 +119,65 @@ function buildSetupCommand(agent, prompt) {
   return `${agent.bin} ${quoteArg(prompt)}`.replace(/\s+/g, ' ').trim();
 }
 
+// --- Configurable gate pipeline ----------------------------------------------
+// The driver runs an ORDERED list of gates per goal. Historically this was the
+// hard-coded implement→verify→review trio (web-app-shaped). It is now a per-repo
+// preset (`gates.steps` in the config): reorder them, drop the web-only `verify`
+// gate for config-only/CLI repos, or mix in custom `command`/`skill` steps.
+// `resolveGates` is pure (no fs/spawn) so it is unit-testable; the driver markdown
+// reads the same `gates.steps` list and runs the resolved steps in order, fail-fast.
+const BUILTIN_GATES = Object.freeze(['implement', 'verify', 'review']);
+// Absent/empty ⇒ this default, so existing repos are unchanged.
+const DEFAULT_GATE_STEPS = Object.freeze(['implement', 'verify', 'review']);
+
+function normalizeGateStep(entry, index) {
+  const where = `gates.steps[${index}]`;
+  const assertBuiltin = (name, original) => {
+    const key = String(name).trim().toLowerCase();
+    if (!BUILTIN_GATES.includes(key)) {
+      throw new Error(
+        `Unknown built-in gate "${original}" at ${where} in ${CONFIG_FILENAME}. ` +
+          `Built-in gates are: ${BUILTIN_GATES.join(', ')}. ` +
+          `For a custom step use an object: {"command": "..."} or {"skill": "..."}.`
+      );
+    }
+    return key;
+  };
+
+  if (typeof entry === 'string') {
+    const gate = assertBuiltin(entry, entry);
+    return { type: 'builtin', gate, name: gate };
+  }
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    if (typeof entry.gate === 'string') {
+      const gate = assertBuiltin(entry.gate, entry.gate);
+      return { type: 'builtin', gate, name: entry.name ? String(entry.name) : gate };
+    }
+    if (typeof entry.command === 'string' && entry.command.trim()) {
+      return { type: 'command', command: entry.command, name: entry.name ? String(entry.name) : entry.command };
+    }
+    if (typeof entry.skill === 'string' && entry.skill.trim()) {
+      return { type: 'skill', skill: entry.skill, name: entry.name ? String(entry.name) : entry.skill };
+    }
+    throw new Error(
+      `Invalid gate step at ${where} in ${CONFIG_FILENAME}: an object step must have a ` +
+        `"gate" (built-in), "command" (shell), or "skill" (agent skill) key.`
+    );
+  }
+  throw new Error(
+    `Invalid gate step at ${where} in ${CONFIG_FILENAME}: expected a built-in gate name ` +
+      `(string) or a custom step object, got ${entry === null ? 'null' : typeof entry}.`
+  );
+}
+
+// Resolve config.gates.steps into an ordered, normalized list of gate steps.
+// Absent / empty ⇒ DEFAULT_GATE_STEPS (implement→verify→review, unchanged behavior).
+function resolveGates(config) {
+  const raw = config && config.gates && config.gates.steps;
+  const steps = Array.isArray(raw) && raw.length ? raw : DEFAULT_GATE_STEPS;
+  return steps.map(normalizeGateStep);
+}
+
 function exists(p) {
   try {
     fs.accessSync(p);
@@ -166,6 +225,9 @@ module.exports = {
   resolveAgent,
   buildLaunchCommand,
   buildSetupCommand,
+  BUILTIN_GATES,
+  DEFAULT_GATE_STEPS,
+  resolveGates,
   exists,
   ensureDir,
   copyFile,

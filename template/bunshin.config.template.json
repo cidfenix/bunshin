@@ -67,6 +67,12 @@
     }
   },
 
+  "gates": {
+    "$comment": "The ORDERED gate pipeline the driver runs for each goal. Absent (or an empty steps array) ⇒ the built-in default [\"implement\", \"verify\", \"review\"] — unchanged behavior. Reorder freely, drop gates you don't need, or mix in your own. This is what lets Bunshin serve repos that are NOT web apps (config-only/CLI repos with no dev server, Android apps built a different way, etc.) rather than the old hard-coded web-app trio.",
+    "stepsNote": "Each entry in `steps` is EITHER the NAME of a built-in gate (string) OR an object for a custom step. Built-in gates: \"implement\" = the implement agent codes it TDD-style, then the driver runs commands.install + commands.gateChecks (deterministic checks); \"verify\" = the verify agent boots commands.devServer and Playwright-smokes the feature (WEB-ONLY — omit it for config-only/CLI/Android repos with nothing to smoke-test); \"review\" = a fresh adversarial review agent returns APPROVE/BLOCK. Custom steps: {\"command\": \"<shell>\", \"name\": \"...\"} runs a shell command in the worktree (non-zero exit ⇒ the goal is PARKED/Blocked), e.g. a linter, a security scan, or `./gradlew assembleDebug`; {\"skill\": \"<name>\", \"name\": \"...\"} invokes an agent skill / slash command as a gate. Steps run in array order, fail-fast: the FIRST failing gate parks the goal. Keep an \"implement\" step (or a custom command that produces the change) or nothing gets built.",
+    "steps": ["implement", "verify", "review"]
+  },
+
   "artifactsDir": ".bunshin/artifacts",
 
   "commands": {
