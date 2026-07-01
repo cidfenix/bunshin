@@ -227,6 +227,17 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
 - It returns `APPROVE` or `BLOCK: <reasons>`.
 - `BLOCK` → PARK with the objection as the reason.
 
+### Built-in gate `readme` — adversarial docs check — OPT-IN
+- **Opt-in only:** this gate runs only when a repo names `readme` in its `gates.steps`; it is NOT in
+  the default `implement → verify → review` pipeline, so existing repos are unchanged. Typically placed
+  right before `review` (so the diff already includes any docs the implement agent wrote).
+- Dispatch a FRESH agent (`Agent` tool) with the brief `gates/readme.md`, passing the branch diff and
+  the goal text. It enforces ONE thing: when a change alters user-facing behavior (CLI/flags/output,
+  config keys, public API, setup/requirements, documented behavior), `README.md` must have been updated
+  to match; a purely internal change needs no README update.
+- It returns `APPROVE` or `BLOCK: <what's missing from README.md>`.
+- `BLOCK` → PARK with the objection as the reason.
+
 ### Custom step `{"command": "<shell>"}` — run a shell gate in the worktree
 - Run the given shell command in the worktree directory (`<git.worktreeBaseDir>/<N>-<slug>`).
 - **Non-zero exit → PARK.** Use this for lint/typecheck/security-scan/`./gradlew assembleDebug`-style

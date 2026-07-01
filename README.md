@@ -104,6 +104,7 @@ Omit the block (or leave `steps` empty) and you get the built-in default —
 | `implement` | Codes the goal TDD-style, then runs `commands.install` + `commands.gateChecks`. |
 | `verify` | Boots `commands.devServer` and Playwright-smokes the feature, committing a screenshot. **Web-only.** |
 | `review` | A fresh adversarial agent reviews the diff → APPROVE / BLOCK. |
+| `readme` | A fresh adversarial **docs** agent: BLOCKs when a user-facing change didn't update `README.md`. **Opt-in** — name it in `gates.steps` (not in the default pipeline). |
 
 Custom steps splice in your own checks: `{"command": "<shell>", "name": "…"}` (a **non-zero exit**
 Blocks the goal) or `{"skill": "<name>", "name": "…"}` (run an agent skill). Steps run in array order,
@@ -126,8 +127,9 @@ Bunshin's own config (a zero-dep CLI with no dev server) drops `verify`:
 ```
 
 The built-in gate presets are **served from the package** as one file per gate under
-**`template/gates/<name>.md`** (`implement` / `verify` / `review`, plus the orchestrator-only `triage`);
-the driver dispatches each by name. The pure resolver is `resolveGates()` in `src/util.js`.
+**`template/gates/<name>.md`** (`implement` / `verify` / `review`, the orchestrator-only `triage`, and
+the opt-in docs gate `readme`); the driver dispatches each by name. The pure resolver is `resolveGates()`
+in `src/util.js`.
 
 ## Setting up the MCP servers
 

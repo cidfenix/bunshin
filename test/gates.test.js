@@ -28,9 +28,29 @@ test('an empty steps array falls back to the default (a no-gate pipeline is dege
 });
 
 test('exposes the built-in gate names and the default order', () => {
-  // `triage` is a built-in gate (orchestrator mode) but NOT part of the default single-repo pipeline.
-  assert.deepStrictEqual(BUILTIN_GATES.slice(), ['triage', 'implement', 'verify', 'review']);
+  // `triage` (orchestrator mode) and `readme` (opt-in docs gate) are built-in gates but NOT part of
+  // the default single-repo pipeline.
+  assert.deepStrictEqual(BUILTIN_GATES.slice(), ['triage', 'implement', 'verify', 'review', 'readme']);
   assert.deepStrictEqual(DEFAULT_GATE_STEPS.slice(), ['implement', 'verify', 'review']);
+});
+
+test('the opt-in `readme` docs gate is a recognized built-in but NOT in the default pipeline', () => {
+  assert.ok(BUILTIN_GATES.includes('readme'), 'readme must be a built-in gate name');
+  assert.ok(!DEFAULT_GATE_STEPS.includes('readme'), 'readme must NOT be in the default pipeline (opt-in only)');
+});
+
+test('a repo opts into the `readme` docs gate by naming it in gates.steps', () => {
+  const steps = resolveGates({ gates: { steps: ['implement', 'readme', 'review'] } });
+  assert.deepStrictEqual(steps.map((s) => s.gate), ['implement', 'readme', 'review']);
+  assert.strictEqual(steps[1].type, 'builtin');
+  assert.strictEqual(steps[1].name, 'readme');
+});
+
+test('the `readme` gate name is matched case- and space-insensitively like the others', () => {
+  const steps = resolveGates({ gates: { steps: [' Readme ', { gate: 'README', name: 'Docs check' }] } });
+  assert.strictEqual(steps[0].gate, 'readme');
+  assert.strictEqual(steps[1].gate, 'readme');
+  assert.strictEqual(steps[1].name, 'Docs check');
 });
 
 test('config-only repos can drop the web-only verify gate', () => {

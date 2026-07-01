@@ -135,7 +135,10 @@ function buildSetupCommand(agent, prompt) {
 // `triage` is the ORCHESTRATOR-mode preset gate: it picks which repository a goal belongs to
 // (see resolveRepositories / template/driver.md). It is a valid step name but is NOT part of the
 // single-repo default pipeline below — only orchestrator configs lead their `gates.steps` with it.
-const BUILTIN_GATES = Object.freeze(['triage', 'implement', 'verify', 'review']);
+// `readme` is an OPT-IN adversarial docs gate: it BLOCKS when a user-facing change didn't update
+// README.md (see template/gates/readme.md). Like `triage`, it is a valid step name but is NOT in the
+// default pipeline — a repo opts in by naming it in `gates.steps`.
+const BUILTIN_GATES = Object.freeze(['triage', 'implement', 'verify', 'review', 'readme']);
 // Absent/empty ⇒ this default, so existing (single-repo) repos are unchanged.
 const DEFAULT_GATE_STEPS = Object.freeze(['implement', 'verify', 'review']);
 
