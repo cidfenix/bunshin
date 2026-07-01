@@ -23,9 +23,10 @@ This driver is **repo-agnostic** and is served from the installed `bunshin` pack
 it from there. Every repo-specific value (board ids, worktree base dir, the `install`/gate/dev-server
 commands, the artifact dir, the benign-console-error allowlist) lives in **`bunshin.config.json`** at
 the root of the repo you are draining (the "config"). Read the config FIRST and use its values
-everywhere below — the workflow itself never changes between repositories. The three agent briefs you
-dispatch (`agents/implement.md`, `agents/verify.md`, `agents/review.md`) sit in the `agents/` folder
-**beside this driver** in the package.
+everywhere below — the workflow itself never changes between repositories. Each **built-in gate is a
+self-contained preset** in the `gates/` folder **beside this driver** in the package: the briefs you
+dispatch (`gates/implement.md`, `gates/verify.md`, `gates/review.md`) and the orchestrator-only
+`gates/triage.md`. This driver describes the ORCHESTRATION; each `gates/<name>.md` describes ONE preset.
 
 Run this as a self-paced `/loop`. Do exactly one iteration per turn, then either loop again (if the
 **Pending** column still has goals) or end the turn (the `/loop` mechanism re-invokes the driver after
@@ -171,29 +172,20 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
 `gate`/`command`/`skill`, is a config error — report it rather than guessing.
 
 ### Built-in gate `triage` — pick the target repository — ORCHESTRATOR-ONLY
-- Used **only in orchestrator mode** (`bunshin run --orchestrator`, config `bunshin.orchestrator.json`),
-  where ONE board's goals span the MANY repositories listed under `repositories`. Put it **FIRST** in
-  `gates.steps` — it runs before the worktree is cut (step 4) so the rest of the pipeline operates on the
-  chosen repo.
-- Match the goal text to **exactly one** configured repository. Use each repo entry's `description`
-  hint PLUS, for the strongest signal, its **CLAUDE.md / README** at the repo's `path` (clone `remote`
-  into `path` first if the local checkout is missing). Weigh names of features/dirs/services mentioned in
-  the goal against what each repo owns.
-- On a confident single match: record the chosen repo's `id`, `path`, and `baseBranch` (its own
-  `baseBranch`, else `git.baseBranch`) and carry them into step 4 (the worktree is cut inside that repo)
-  and INTEGRATION (the merge/PR targets that repo's base branch). Note the chosen `id` in the goal's
-  branch/reports and heartbeat `action`.
-- If triage **cannot confidently determine** the repository (no match, or an ambiguous tie): **PARK** —
-  transition the goal **→ Blocked** and comment naming the candidate repositories considered and exactly
-  what information is missing to decide (e.g. "mention the repo/service, or a file/path that identifies
-  it"). **Do NOT guess.** No worktree is created for a parked-at-triage goal.
-- Consumers can supply their **own** triage gate instead of this preset: a custom `{"skill": "<name>"}`
-  or `{"command": "<shell>"}` step that emits the chosen repo `id`. Treat a "no repo / undecidable"
-  result as a PARK exactly as above.
+- Follow the preset **`gates/triage.md`** (beside this driver). Used **only in orchestrator mode**
+  (`bunshin run --orchestrator`, config `bunshin.orchestrator.json`), where ONE board's goals span the
+  MANY repositories listed under `repositories`. Put it **FIRST** in `gates.steps` — it runs before the
+  worktree is cut (step 4) so the rest of the pipeline operates on the chosen repo. The driver follows
+  this preset itself (not dispatched to a subagent).
+- In short: match the goal text to **exactly one** configured repository (using each repo's
+  `description` + its CLAUDE.md/README); on a confident single match carry that repo's `id`/`path`/
+  `baseBranch` into step 4 and INTEGRATION; on no match or an ambiguous tie **PARK** to Blocked with a
+  comment naming the candidates and the missing info — **never guess**. See `gates/triage.md` for the
+  full procedure and the bring-your-own-triage note.
 
 ### Built-in gate `implement` — implement + deterministic checks
 - Dispatch the implement agent with the `Agent` tool (`subagent_type: general-purpose`), passing the
-  brief `agents/implement.md`, the goal text (the issue summary), the branch
+  brief `gates/implement.md`, the goal text (the issue summary), the branch
   name, and the worktree path.
 - After it returns, run in the worktree: the config's `commands.install`, then `commands.gateChecks`.
 - CRITICAL — keep `commands.install` exactly as configured (see `commands.installNote`). For pnpm it
@@ -214,7 +206,7 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
 ### Built-in gate `verify` — behavioral (Playwright) — WEB-ONLY
 - **Omit this gate** for config-only/CLI/Android repos with no web UI to smoke-test (leave it out of
   `gates.steps`); the driver simply skips it because it isn't in the list.
-- Dispatch the verify agent with the brief `agents/verify.md`, passing
+- Dispatch the verify agent with the brief `gates/verify.md`, passing
   the goal text, the branch diff, the worktree path, and the agent-token flag.
 - It boots the dev server (`commands.devServer`) (+ the local agent via `commands.agentStart` if the
   issue is tagged with `verify.agentTag`), exercises the feature, asserts the feature is reachable +
@@ -231,7 +223,7 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
 
 ### Built-in gate `review` — adversarial review
 - Dispatch a FRESH review agent (`Agent` tool) with the brief
-  `agents/review.md` and ONLY the branch diff — no implementer context.
+  `gates/review.md` and ONLY the branch diff — no implementer context.
 - It returns `APPROVE` or `BLOCK: <reasons>`.
 - `BLOCK` → PARK with the objection as the reason.
 

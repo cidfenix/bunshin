@@ -21,7 +21,8 @@ board — see "Two halves" below.)
    has four commands (`setup` / `init` / `run` / `watch`) and does almost nothing on its own; it writes
    the config, launches Claude Code, and (`watch`) serves a read-only dashboard.
 2. **The pipeline** (`template/`) — generic markdown that a launched Claude Code session *reads and
-   follows*: `driver.md` (the autonomous `/loop` that drains the queue) + three agent briefs, plus
+   follows*: `driver.md` (the autonomous `/loop` that drains the queue) + the **built-in gate presets**
+   in `template/gates/` (`implement`/`verify`/`review` briefs + the orchestrator-only `triage`), plus
    `setup.md` (an **interactive** guide the `setup` session follows to configure the repo). All served
    **from the installed package** at run time, never copied into consuming repos.
 
@@ -35,11 +36,14 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
    **`bunshin.config.json`** at its root (+ `.bunshin/artifacts/` screenshot output). (Separately, at
    the *user* level — not in any repo — `run`/`watch` use a shared **`~/.bunshin/`** home for the
    cross-repo dashboard registry + heartbeats; see `src/registry.js`.) The driver and
-   the three agent briefs are **served from the installed package** — `bunshin run` hands Claude Code
-   the absolute path to `template/driver.md`, whose briefs sit in `template/agents/` beside it. This
+   the built-in gate presets are **served from the installed package** — `bunshin run` hands Claude Code
+   the absolute path to `template/driver.md`, whose presets sit in `template/gates/` beside it. This
    is the no-duplication win: one canonical pipeline, every repo just owns its config (like
    `.eslintrc`). Update the pipeline everywhere with `npm i -g github:cidfenix/bunshin` — no per-repo
-   changes. (Reversed an earlier "scaffold the whole folder into each repo" model.)
+   changes. (Reversed an earlier "scaffold the whole folder into each repo" model.) The **built-in gate
+   presets** are self-contained files in `template/gates/` beside the driver (`implement`/`verify`/
+   `review` briefs + the orchestrator-only `triage`) — one file per `BUILTIN_GATES` name; the driver
+   references them as `gates/<name>.md`.
    **Orchestrator variant (BUN-7):** a second, distinctly-named config —
    **`bunshin.orchestrator.json`** — lets ONE board drive **multiple repositories** from any folder. It
    lists the target `repositories` (git remote + local path + a triage `description`) and coexists with a
@@ -103,7 +107,7 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 | `src/util.js` | Helpers: `CONFIG_FILENAME`, `ORCHESTRATOR_CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`, plus the configurable gate pipeline — `resolveGates(config)` (normalizes `gates.steps` → ordered built-in/`command`/`skill` steps; absent ⇒ `implement → verify → review`), `BUILTIN_GATES` (now incl. `triage`), `DEFAULT_GATE_STEPS`, plus orchestrator — `resolveRepositories(config)` (validates/normalizes the `repositories` array; unit-tested in `test/orchestrator.test.js`). |
 | `template/driver.md` | The autonomous `/loop` driver procedure (the pipeline). |
 | `template/setup.md` | The **interactive** setup guide the `setup` session follows (asks the user, fills the config, installs MCPs). |
-| `template/agents/{implement,verify,review}.md` | The three agent briefs the driver dispatches. |
+| `template/gates/{implement,verify,review,triage}.md` | The built-in **gate presets** — one file per `BUILTIN_GATES` name. `implement`/`verify`/`review` are the agent briefs the driver dispatches; `triage` (orchestrator-only) is a preset the driver follows itself. Referenced from `driver.md` as `gates/<name>.md`. |
 | `template/bunshin.config.template.json` | Placeholder single-repo config (`{{TOKENS}}` filled by `init`/`setup`). |
 | `template/bunshin.orchestrator.template.json` | Placeholder **orchestrator** config (BUN-7): adds the `repositories` array + a triage-led `gates.steps`; written by `init --orchestrator`. |
 | `assets/bunshin-banner.svg` | Original themed README banner (no copyrighted imagery). |
@@ -141,9 +145,11 @@ behaviour.
 - **Cross-platform.** Primary dev is Windows; use `path` (never hardcode separators) and forward-slash
   display paths in user-facing strings. `run` spawns `claude` with `shell:true` so the `.cmd` shim
   resolves.
-- **Keep `template/` and `src/` in sync.** The driver/briefs reference `bunshin.config.json` at the
-  repo root and the briefs as `agents/<role>.md` beside the driver — don't reintroduce
-  `docs/superpowers/...` paths (that was the old scaffold model).
+- **Keep `template/` and `src/` in sync.** The driver/presets reference `bunshin.config.json` at the
+  repo root and each built-in gate preset as `gates/<name>.md` beside the driver (moved from the old
+  `template/agents/` layout in BUN-8) — don't reintroduce `template/agents/...` or `docs/superpowers/...`
+  paths (those were older layouts). Every `BUILTIN_GATES` name must have a `template/gates/<name>.md`
+  file; `test/gates-layout.test.js` guards this.
 - **Commits:** Conventional Commits, scoped (stage explicit paths, never `git add -A` blindly). End
   messages with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. Files use LF endings.
 
@@ -190,3 +196,11 @@ behaviour.
   description/CLAUDE.md/README; undecidable ⇒ Blocked with a comment) + a dedicated-vs-orchestrator note in
   `template/setup.md`. Extends LOCKED decisions 1 (config-per-role) & 4 (triage gate). Tests:
   `test/orchestrator.test.js` (+ run/gates coverage), wired into `npm test`.
+- Gate presets extracted to `template/gates/` (BUN-8): moved the `implement`/`verify`/`review` briefs out
+  of `template/agents/` (folder removed) and added a self-contained `triage.md`, so every `BUILTIN_GATES`
+  name now has a discoverable `template/gates/<name>.md` preset. `template/driver.md` references them as
+  `gates/<name>.md` (triage's long inline definition thinned to a pointer + summary); updated the
+  `agents/`→`gates/` references in `src/run.js`, `src/util.js`, the config-template `$comment`, and
+  CLAUDE.md. Structural/behavior-preserving refactor. New `test/gates-layout.test.js` guards the layout
+  (each built-in gate ⇒ a `gates/<name>.md` file; no stale `agents/<role>` path in the live driver/src/
+  template files), wired into `npm test`.

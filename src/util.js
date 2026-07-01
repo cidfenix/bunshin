@@ -26,9 +26,9 @@ function templateDir() {
   return path.join(__dirname, '..', 'template');
 }
 
-// The driver + agent briefs are served from the installed package (never scaffolded
-// into the consuming repo), so every repo shares one canonical copy. The agent briefs
-// live in `agents/` beside this driver.
+// The driver + built-in gate presets are served from the installed package (never
+// scaffolded into the consuming repo), so every repo shares one canonical copy. Each
+// built-in gate preset lives in `gates/` beside this driver.
 function packageDriverPath() {
   return path.join(templateDir(), 'driver.md');
 }

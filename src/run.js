@@ -43,7 +43,7 @@ function readConfigSummary(configPath) {
 // The driver lives in the installed package; the repo only owns CONFIG_FILENAME at its
 // root. We hand Claude Code the absolute path to the package driver so one canonical copy
 // drives every repo. The driver itself reads ./bunshin.config.json and dispatches the
-// agent briefs that sit in `agents/` beside it.
+// built-in gate presets that sit in `gates/` beside it.
 function buildPrompt(projectName, once, driverPath, statusFile) {
   const scope = once
     ? "process EXACTLY ONE goal from the Pending column"
@@ -54,8 +54,8 @@ function buildPrompt(projectName, once, driverPath, statusFile) {
       `following the driver's Heartbeat contract (best-effort; never fail the loop if the write fails). `
     : '';
   return (
-    `Execute the ${projectName} Bunshin: read the Bunshin driver at ${driver} (its agent briefs are ` +
-    `in the agents/ folder beside it) and follow it to ${scope} -- each through all three gates to a ` +
+    `Execute the ${projectName} Bunshin: read the Bunshin driver at ${driver} (its built-in gate ` +
+    `presets are in the gates/ folder beside it) and follow it to ${scope} -- each through all three gates to a ` +
     `fast-forward merge. The per-repo config is ${CONFIG_FILENAME} at the root of the current repo. ` +
     heartbeat +
     `Then stop until the next scheduled run.`
@@ -79,8 +79,8 @@ function buildOrchestratorPrompt(projectName, once, driverPath, statusFile, conf
     : '';
   return (
     `Execute the ${projectName} Bunshin in ORCHESTRATOR MODE across ${(repositories || []).length} ` +
-    `repositories [${repoList}]: read the Bunshin driver at ${driver} (its agent briefs are in the ` +
-    `agents/ folder beside it) and follow it to ${scope}. The orchestrator config is ${configFilename} ` +
+    `repositories [${repoList}]: read the Bunshin driver at ${driver} (its built-in gate presets are in the ` +
+    `gates/ folder beside it) and follow it to ${scope}. The orchestrator config is ${configFilename} ` +
     `at the root of the current folder; it lists the repositories (git remote + local path) and the ` +
     `gate pipeline. For EACH goal, run the TRIAGE gate FIRST to identify which repository it belongs to ` +
     `(from the goal text plus each repo's description + CLAUDE.md/README). If triage cannot confidently ` +
