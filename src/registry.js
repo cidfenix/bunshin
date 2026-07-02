@@ -34,6 +34,14 @@ function statusFileFor(repoId, home) {
   return path.join(statusDir(home), `${repoId}.json`);
 }
 
+// Where a `--sandbox` run's fully isolated clone lives: under the per-user `~/.bunshin/` home,
+// namespaced by repoId so concurrent repos never collide. Kept OUT of the tracked working tree on
+// purpose — the repo's `.bunshin/artifacts/` is committed output, so a clone there would leave the
+// host `git status` dirty and brick every subsequent run's clean-tree guard. Pure (path only).
+function sandboxCloneFor(repoId, home) {
+  return path.join(home || bunshinHome(), 'sandbox', repoId, 'work');
+}
+
 // Atomic write: temp file in the same dir, then rename over the target, so a concurrent
 // reader never sees a half-written file.
 function writeJsonAtomic(file, obj) {
@@ -93,6 +101,7 @@ module.exports = {
   registryPath,
   repoIdFor,
   statusFileFor,
+  sandboxCloneFor,
   writeJsonAtomic,
   readAll,
   register,

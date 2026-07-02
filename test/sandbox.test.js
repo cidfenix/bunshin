@@ -92,9 +92,11 @@ test('mounts: non-array throws /sandbox.mounts/; a non-string entry throws /sand
 });
 
 // --- buildDockerCommand --------------------------------------------------------
+// workdir is the isolated clone — under the per-user ~/.bunshin/ home (registry.sandboxCloneFor),
+// OUTSIDE the tracked tree, so a leftover clone never dirties the host `git status` (BUN-16 fix).
 const BASE = {
   image: 'bunshin-sandbox:0.2.0',
-  workdir: '/repo/.bunshin/sandbox-work',
+  workdir: '/home/me/.bunshin/sandbox/abc123/work',
   network: 'none',
   envNames: [],
   mounts: [],
@@ -106,7 +108,7 @@ test('buildDockerCommand emits the core docker run scaffold', () => {
   const cmd = buildDockerCommand(BASE);
   assert.ok(cmd.includes('docker run --rm'), 'docker run --rm');
   assert.ok(cmd.includes('-w /work'), '-w /work');
-  assert.ok(cmd.includes('-v /repo/.bunshin/sandbox-work:/work'), 'workdir mounted at /work');
+  assert.ok(cmd.includes('-v /home/me/.bunshin/sandbox/abc123/work:/work'), 'workdir mounted at /work');
   assert.ok(cmd.includes('--network none'), '--network <net>');
   assert.ok(cmd.includes('bunshin-sandbox:0.2.0'), 'the image tag');
 });

@@ -49,9 +49,11 @@ function syncBackFromClone(root, cloneDir, baseBranch) {
 // Prepare a FRESH, fully isolated local clone of the host repo for the sandboxed agent to work in.
 // `git clone --local` hardlinks objects (fast, disk-cheap). Removed + recreated each run. In PR mode
 // re-point the clone's origin at the REAL remote so the in-container push/PR targets GitHub, not the
-// local source. The clone lives under the already-gitignored `.bunshin/` area.
-function prepareSandboxClone(root, mergeMode, remoteName) {
-  const cloneDir = path.join(root, '.bunshin', 'sandbox-work');
+// local source. The clone lives OUTSIDE the tracked working tree — under the per-user `~/.bunshin/`
+// home (see registry.sandboxCloneFor) — so it can never dirty the host `git status`. (The in-repo
+// `.bunshin/artifacts/` is COMMITTED output, so a clone there would leave the tree dirty and brick the
+// clean-tree guard on the next run.)
+function prepareSandboxClone(cloneDir, root, mergeMode, remoteName) {
   fs.rmSync(cloneDir, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(cloneDir), { recursive: true });
   const clone = spawnSync('git', ['clone', '--local', root, cloneDir], { stdio: 'inherit', shell: false });
@@ -258,8 +260,11 @@ async function run(opts) {
       }
     }
 
-    // Fresh isolated clone the container works in.
-    const cloneDir = prepareSandboxClone(root, mergeMode, remoteName);
+    // Fresh isolated clone the container works in — under `~/.bunshin/sandbox/<repoId>/work`, OUTSIDE
+    // the tracked tree, so it never dirties the host `git status` (the clean-tree guard above would
+    // otherwise brick every subsequent run once a clone was left on disk).
+    const cloneDir = reg.sandboxCloneFor(repoId);
+    prepareSandboxClone(cloneDir, root, mergeMode, remoteName);
 
     // Expand `~` in mount hosts NOW (against the real host home) — resolveSandbox left it pure.
     const home = os.homedir();

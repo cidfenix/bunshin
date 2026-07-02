@@ -74,6 +74,30 @@ test('markStopped sets endedAt on the entry', () => {
   assert.strictEqual(reg.readAll(home).repos[repoId].endedAt, '2026-06-27T11:00:00Z');
 });
 
+test('sandboxCloneFor lives under the ~/.bunshin/ home, NOT inside the repo tree (BUN-16 fix)', () => {
+  const home = tmpHome();
+  const repoRoot = 'E:/workspace/gitfenix';
+  const repoId = reg.repoIdFor(repoRoot);
+  const clone = reg.sandboxCloneFor(repoId, home);
+
+  // It is under the per-user home, namespaced by repoId.
+  assert.strictEqual(clone, path.join(home, 'sandbox', repoId, 'work'));
+  assert.ok(clone.startsWith(home + path.sep), 'clone must live under the ~/.bunshin/ home');
+
+  // Crucially: it is NOT inside the repo's tracked tree (which would dirty `git status` and brick the
+  // clean-tree guard). In particular it must not be the old in-repo `.bunshin/sandbox-work` location.
+  const norm = clone.split(/[\\/]/).join('/');
+  assert.ok(!norm.includes('/gitfenix/'), 'clone must not be inside the repo working tree');
+  assert.ok(!norm.endsWith('/.bunshin/sandbox-work'), 'clone must not use the old in-repo location');
+
+  // Different repos get different clone dirs (concurrent repos never collide).
+  const other = reg.sandboxCloneFor(reg.repoIdFor('E:/workspace/other'), home);
+  assert.notStrictEqual(clone, other);
+
+  // Absent an explicit home it falls back to the real ~/.bunshin/ home.
+  assert.strictEqual(reg.sandboxCloneFor(repoId), path.join(reg.bunshinHome(), 'sandbox', repoId, 'work'));
+});
+
 test('readAll on a missing home returns an empty registry, not a throw', () => {
   const all = reg.readAll(path.join(os.tmpdir(), 'bunshin-does-not-exist-' + Date.now()));
   assert.deepStrictEqual(all, { schemaVersion: 1, repos: {} });
