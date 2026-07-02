@@ -63,6 +63,14 @@ function hasExecutable(name) {
   return spawnSync('sh', ['-c', `command -v ${name}`], { stdio: 'ignore' }).status === 0;
 }
 
+// True if Docker is usable for a `--sandbox` run: the `docker` CLI is on PATH AND the daemon is
+// reachable (`docker info` exits 0 — i.e. Docker Desktop / the engine is actually running, not just
+// installed). Not pure (it spawns), so it lives beside hasExecutable rather than in sandbox.js.
+function dockerAvailable() {
+  if (!hasExecutable('docker')) return false;
+  return spawnSync('docker', ['info'], { stdio: 'ignore', shell: false }).status === 0;
+}
+
 // --- Pluggable agent runtime --------------------------------------------------
 // Bunshin launches an agent CLI to run the pipeline. Claude Code is the default;
 // `codex` (the codex CLI) is an alternative. Everything below is pure (no spawn,
@@ -456,6 +464,7 @@ module.exports = {
   gitRoot,
   isCleanTree,
   hasExecutable,
+  dockerAvailable,
   resolveAgent,
   buildLaunchCommand,
   buildSetupCommand,

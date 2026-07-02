@@ -36,6 +36,14 @@ its idle interval — no manual scheduling is needed).
 If the launch prompt gave you a **status file** path, emit progress heartbeats as you go — see
 **Heartbeat (live status for `bunshin watch`)** below. It is best-effort telemetry only.
 
+**Sandbox awareness.** You may be running **sandboxed** (`bunshin run --sandbox`): inside a Docker
+container whose cwd is an **isolated clone** of the repo, not the host working tree. You do not need to
+detect or care about this — the pipeline is identical — with one nuance at INTEGRATION: in **auto** mode
+you do the usual local `--ff-only` merge into *this clone's* `<git.baseBranch>` and **do not push
+anywhere**; the Bunshin CLI on the host fast-forwards its own base branch from the clone after you exit.
+In **PR** mode you push + open the PR against the remote exactly as today (the clone's `origin` already
+points at the real remote). Nothing else changes.
+
 ## The queue (Trello or Jira)
 
 `provider.kind` in the config selects the tracker — **`jira`** (default; absent ⇒ jira) or
@@ -283,7 +291,10 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
 - Treat its verdict like `review`: a BLOCK / failure → PARK; otherwise continue.
 
 ## INTEGRATION
-Behaviour depends on `merge.mode` (default `auto`).
+Behaviour depends on `merge.mode` (default `auto`). **Sandboxed?** (see **Sandbox awareness** above)
+auto mode: merge into *this clone's* base as below and do NOT push — the host CLI fast-forwards from the
+clone afterward; PR mode: push + open the PR against the remote exactly as below (origin already points
+at it).
 
 ### mode `auto` — local fast-forward merge (no remote / GitHub needed)
 1. Rebase the branch onto the latest base branch:

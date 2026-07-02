@@ -65,6 +65,12 @@ test('no live source/template file carries a stale agents/<role>.md path', () =>
   }
 });
 
+test('the shipped sandbox reference Dockerfile exists under template/sandbox/ (BUN-16)', () => {
+  const dockerfile = path.join(repoRoot, 'template', 'sandbox', 'Dockerfile');
+  assert.ok(exists(dockerfile), 'template/sandbox/Dockerfile must exist (bunshin run --sandbox reference image)');
+  assert.ok(fs.readFileSync(dockerfile, 'utf8').trim().length > 0, 'template/sandbox/Dockerfile must not be empty');
+});
+
 test('README documents the configurable gate pipeline + orchestrator mode', () => {
   const readme = read('README.md');
   assert.ok(/gates\.steps/.test(readme), 'README must document the configurable gate pipeline (gates.steps)');

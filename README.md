@@ -52,6 +52,8 @@ once — see [Orchestrator mode](#orchestrator-mode--one-board-many-repositories
   built-ins, so `npx` pulls in nothing). Note this is separate from the runtime prerequisites above:
   the **pipeline needs your agent CLI (Claude Code *or* Codex) + a Trello *or* Jira MCP**, plus the
   **Playwright MCP** when the `verify` gate is in play.
+- **Docker** — **optional**, only if you use [`bunshin run --sandbox`](#sandboxed-runs-docker-desktop)
+  to isolate the agent in a container. Absent `--sandbox`, Docker is not needed.
 
 > The `setup` command (below) can **install the MCP servers for you** — it runs `claude mcp add` with
 > your approval and your credentials. Configuring them by hand is a one-time step too — see
@@ -227,6 +229,7 @@ npx github:cidfenix/bunshin run --once          # process exactly one goal, then
 npx github:cidfenix/bunshin run --interval 30m  # different re-check cadence (Claude Code /loop only)
 npx github:cidfenix/bunshin run --unattended    # skip the agent CLI's permission prompts (hands-off — careful)
 npx github:cidfenix/bunshin run --orchestrator  # drive MANY repos from one board (bunshin.orchestrator.json)
+npx github:cidfenix/bunshin run --sandbox       # run the agent in Docker against an ISOLATED clone (host untouched)
 ```
 
 `run` refuses to start if the working tree is dirty (it fast-forward-merges finished goals into the
@@ -237,6 +240,43 @@ repo, not the orchestrator folder.)
 The cadence above is the **Claude Code `/loop`** default. With `agent.kind: "codex"`, `run` launches
 `codex exec` **once** and exits — `--interval` is ignored, so wrap `run` in an external scheduler for a
 recurring cadence (see [Agent runtime](#agent-runtime--claude-code-or-codex)).
+
+### Sandboxed runs (Docker Desktop)
+
+`bunshin run --unattended` hands the agent CLI **all permission prompts bypassed**, then it runs git,
+edits files, and merges on your **host** with no human in the loop. `--sandbox` is an **opt-in isolation
+wrapper** for that: it runs the agent inside a **Docker container** against a **fully isolated local
+clone** of your repo. **Your real working tree is never bind-mounted or written by the agent** — only
+Bunshin's own CLI writes the host repo, as one deterministic step (auto mode: `git fetch` + a
+fast-forward `git merge --ff-only` from the clone after a clean exit; PR mode: via the remote). Absent
+`--sandbox`, behavior is 100% unchanged.
+
+```bash
+npx github:cidfenix/bunshin run --sandbox --unattended
+```
+
+Requires **Docker** running (Docker Desktop / the `docker` CLI + a reachable daemon). On first use
+Bunshin builds a shipped reference image (`template/sandbox/Dockerfile` → `bunshin-sandbox:<version>`)
+with git, the agent CLI, and Playwright; it only rebuilds on a Bunshin upgrade. `--sandbox` is
+**single-repo only** (combining it with `--orchestrator` errors).
+
+Everything that crosses the container boundary is an **explicit allowlist** in the optional top-level
+`sandbox` config block (all keys optional):
+
+```jsonc
+"sandbox": {
+  "image": "",        // "" ⇒ build/use the shipped bunshin-sandbox:<version>; else use THIS image tag as-is
+  "dockerfile": "",   // "" ⇒ the shipped template/sandbox/Dockerfile; else a path relative to the repo root
+  "network": "none",  // "none" (default, no network) | "default" | a named docker network
+  "env": [],          // host env-var NAMES to inject, e.g. ["ANTHROPIC_API_KEY", "GH_TOKEN"]
+  "mounts": []         // host files/dirs to bind-mount READ-ONLY, e.g. ["~/.claude", "~/.config/gh"] (~ = host home)
+}
+```
+
+> **Network + secrets caveat.** `network: "none"` is the strongest default, but **PR mode and MCP
+> trackers need network** — set `"default"` (or a named network) for those, and add the credentials the
+> agent needs to `env` (e.g. `ANTHROPIC_API_KEY`, `GH_TOKEN`) and/or `mounts` (e.g. `~/.claude`,
+> `~/.config/gh`). Only what you name crosses; nothing else does.
 
 ### `watch` — one dashboard for every running repo
 

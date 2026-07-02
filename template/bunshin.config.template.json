@@ -105,6 +105,20 @@
     "benignConsoleErrorsNote": "Substrings of EXPECTED offline console noise (endpoints not running during the smoke test) that Gate 2 must IGNORE. Only fail on NEW errors introduced by the change. Add your project's expected offline endpoints here (e.g. an API or agent localhost URL)."
   },
 
+  "sandbox": {
+    "$comment": "OPTIONAL. Only used when you pass `bunshin run --sandbox`. Runs the agent inside a Docker container against an ISOLATED CLONE of this repo — the agent never touches your real working tree (it is not bind-mounted). Only Bunshin's own CLI writes the host repo, as one deterministic step: auto mode fast-forwards the host baseBranch from the clone after a clean exit; PR mode pushes + opens the PR against the remote. Requires Docker (Docker Desktop / the `docker` CLI) running. Absent / not passing --sandbox ⇒ the agent runs directly on the host (unchanged). Everything below is an EXPLICIT ALLOWLIST: only the env-var names in `env` and the files in `mounts` cross the boundary. Delete this block to keep defaults.",
+    "image": "",
+    "imageNote": "\"\" ⇒ build/use the shipped reference image (bunshin-sandbox:<version>, from template/sandbox/Dockerfile); else use THIS image tag as-is (your own prebuilt image).",
+    "dockerfile": "",
+    "dockerfileNote": "\"\" ⇒ the shipped template/sandbox/Dockerfile; else a path (relative to the repo root) to your own Dockerfile to build.",
+    "network": "none",
+    "networkNote": "docker --network: \"none\" (default, strongest — no network) | \"default\" | a named docker network. NOTE: PR mode and MCP trackers need network — set \"default\" (or a named network) for those setups.",
+    "env": [],
+    "envNote": "Allowlist of host env-var NAMES to inject into the container (one -e NAME each), e.g. [\"ANTHROPIC_API_KEY\", \"GH_TOKEN\"]. Only what's named crosses.",
+    "mounts": [],
+    "mountsNote": "Allowlist of host files/dirs to bind-mount READ-ONLY into the container, e.g. [\"~/.claude\", \"~/.config/gh\"]. `~` expands to the host home. A bare path mounts at /sandbox-mounts/<basename>; use a \"host:container\" colon form to choose the container path. Only what's named crosses."
+  },
+
   "neverCommit": {
     "$comment": "Files the implement/verify agents must NEVER stage (install-time churn), and Gate 3 must BLOCK if they appear in the diff — unless changing dependencies is the literal point of the goal. Adjust to your package manager's lockfile.",
     "paths": ["pnpm-lock.yaml", "pnpm-workspace.yaml"]

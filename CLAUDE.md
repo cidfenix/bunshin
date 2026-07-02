@@ -106,6 +106,19 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
    before auto-merging. Pure resolver: `resolvePrLabels()` in `src/util.js` (trims/drops-empties/de-dupes;
    non-array or non-string entry throws; absent/empty ⇒ `[]` = no labels, unchanged; unit-tested in
    `test/prlabels.test.js`).
+   **Sandboxed runs (BUN-16):** an OPT-IN **`bunshin run --sandbox`** isolation wrapper (single-repo
+   only) runs the unattended agent inside a **Docker container** against a **fully isolated local clone**
+   (`.bunshin/sandbox-work`, `git clone --local`) — the host working tree is **never bind-mounted or
+   written by the agent**. Only the CLI writes the host repo, as ONE deterministic step: **auto mode**
+   fast-forwards the host base branch from the clone (`git fetch <clone> <baseBranch>` + `git merge
+   --ff-only`) after a clean container exit (if a ff is impossible it does NOT force — reports + leaves
+   the clone); **PR mode** lands via the remote (the clone's `origin` is re-pointed at it). Everything
+   crossing the boundary is an **explicit allowlist** (`sandbox.env` names + `sandbox.mounts` files,
+   `sandbox.network` default `none`). Pure pieces (`resolveSandbox`/`buildDockerCommand`) live in
+   `src/sandbox.js`, unit-tested in `test/sandbox.test.js` WITHOUT a Docker daemon; `dockerAvailable()`
+   (impure guard) in `src/util.js`; the orchestration + sync-back in `src/run.js`. Docker is an OPTIONAL
+   runtime prereq gated to `--sandbox`. Absent the flag, behavior is 100% unchanged. `--sandbox
+   --orchestrator` errors (out of scope for now).
 
 ---
 
@@ -116,7 +129,9 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
 | `bin/bunshin.js` | CLI entry: arg parsing, `--help`/`--version`, dispatch to `setup`/`init`/`run`. |
 | `src/init.js` | `init` — render `template/bunshin.config.template.json` (token substitution) → `bunshin.config.json` at the repo root. Exports `ensureConfig()` (write-if-missing), reused by `setup`. |
 | `src/setup.js` | `setup` — `ensureConfig()` then `spawn` the selected agent CLI (`resolveAgent`/`buildSetupCommand`; a plain interactive session, no `/loop`) pointed at `template/setup.md`. `buildSetupPrompt()` is the unit-testable core. |
-| `src/run.js` | `run` — guards (git repo · config present · clean tree · agent CLI on PATH), build the prompt pointing at the package driver, `spawn` the selected agent CLI (`resolveAgent`/`buildLaunchCommand` — claude `/loop` vs `codex exec`). Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. The **`--orchestrator`** flag switches it to the `bunshin.orchestrator.json` config (validated up front via `resolveRepositories`; clean-tree guard skipped — the merge target is each repo, not the home) and builds `buildOrchestratorPrompt()` (also pure/unit-testable) instead. |
+| `src/run.js` | `run` — guards (git repo · config present · clean tree · agent CLI on PATH), build the prompt pointing at the package driver, `spawn` the selected agent CLI (`resolveAgent`/`buildLaunchCommand` — claude `/loop` vs `codex exec`). Also registers the repo in `~/.bunshin/` (with the child PID) and passes the heartbeat status-file path into the prompt. `buildPrompt()` is the unit-testable core. The **`--orchestrator`** flag switches it to the `bunshin.orchestrator.json` config (validated up front via `resolveRepositories`; clean-tree guard skipped — the merge target is each repo, not the home) and builds `buildOrchestratorPrompt()` (also pure/unit-testable) instead. The **`--sandbox`** flag (BUN-16, single-repo only) adds an isolation branch: `dockerAvailable()` guard, ensure/build the image, `git clone --local` a fresh isolated clone (`.bunshin/sandbox-work`), expand `~` in mounts, wrap the agent command via `buildDockerCommand` and `spawn` it, then on a clean exit do the auto-mode `git fetch` + `--ff-only` sync-back (PR mode: no-op). The non-sandbox path is byte-for-byte unchanged. |
+| `src/sandbox.js` | The PURE pieces of the opt-in `--sandbox` run (BUN-16): `resolveSandbox(config)` (normalizes the optional `sandbox` block → `{image,dockerfile,network,env,mounts}`; `sandbox.*`-keyed throws) + `buildDockerCommand({…})` (the `docker run …` string wrapping the agent command against the isolated clone). No spawn/fs/Docker ⇒ unit-testable in `test/sandbox.test.js` without a daemon. The impure guard `dockerAvailable()` is in `src/util.js`; the clone prep + spawn + auto-mode sync-back live in `src/run.js`. |
+| `template/sandbox/Dockerfile` | Reference sandbox image (BUN-16), built + tagged `bunshin-sandbox:<pkgVersion>` when `sandbox.image` is unset: `node:20-bookworm-slim` + `git` + the agent CLI (`@anthropic-ai/claude-code`; codex variant documented) + Playwright/browsers for the `verify` gate. No hijacking `ENTRYPOINT`. Overridable via `sandbox.image`/`sandbox.dockerfile`. |
 | `src/registry.js` | The shared per-user home `~/.bunshin/` that relates every running repo: `repoIdFor()`, `register()`, `markStopped()`, `readAll()`, atomic writes. Keyed by `repoId` = sha256(repo path)[:12]. |
 | `src/watch.js` | `watch` — zero-dep localhost dashboard (built-in `http`). Pure file aggregator over `~/.bunshin/` (registry + per-repo heartbeats); never calls a tracker. `buildStatusPayload()` (liveness: running/stale/stopped) is the unit-testable core. The served page has **two view modes** (header toggle, localStorage-persisted): **Pro** (status tiles) and **🥷 Bunshin** (pixel-art canvas dojos — loop ninja casts a shadow clone per goal, sub-clone per gate). `sceneFor(repo)` is the pure state→scene mapper, unit-tested in Node and inlined into the page via `.toString()` (single source of truth). |
 | `src/util.js` | Helpers: `CONFIG_FILENAME`, `ORCHESTRATOR_CONFIG_FILENAME`, `templateDir()`, `packageDriverPath()`, `gitRoot()`, `isCleanTree()`, `hasExecutable()`, `exists()`, plus the pluggable agent runtime — `resolveAgent(kind)` (claude default / codex; kind→spawn spec), `buildLaunchCommand()` (run: claude `/loop` vs `codex exec`), `buildSetupCommand()`, plus the configurable gate pipeline — `resolveGates(config)` (normalizes `gates.steps` → ordered built-in/`command`/`skill` steps; absent ⇒ `implement → verify → review`), **`resolveOpenPr(config)`** (PR mode: how to open the PR — `merge.openPr` → `{kind:'skill'\|'command'\|'default', value}`; absent/blank ⇒ the built-in `gh pr create --fill`; EITHER a `skill` OR a `command`, unit-tested in `test/openpr.test.js`), **`resolvePrLabels(config)`** (PR mode: the label strings to STAMP on every opened PR for filtering — `merge.prLabels` → normalized `string[]`, trimmed/de-duped; absent/empty ⇒ `[]`; DISTINCT from the `merge.autoMerge.label` merge gate; unit-tested in `test/prlabels.test.js`), **`resolveCommit(config)`** (implement gate: how to commit the goal's work — top-level `commit` → `{kind:'skill'\|'command'\|'default', value}`; absent/blank ⇒ the built-in scoped `git commit`; same EITHER-skill-OR-command shape, sharing the pure `resolveSkillOrCommand` helper with `resolveOpenPr`, unit-tested in `test/commit.test.js`), `BUILTIN_GATES` (now incl. the opt-in `triage` + `readme` + `claude-md`), `DEFAULT_GATE_STEPS`, plus orchestrator — `resolveRepositories(config)` (validates/normalizes the `repositories` array, now carrying each entry's optional per-repo `gates`/`commands` through) + **`resolveRepoGates(orchestratorConfig, repo)`** (effective ordered gates for a triaged repo: its own `gates.steps` → orchestrator-global → `DEFAULT_GATE_STEPS`; reuses `resolveGates`, errors name the repo) + **`resolveRepoCommands(orchestratorConfig, repo)`** (repo `commands` shallow-merged over the global); unit-tested in `test/orchestrator.test.js`). |
@@ -288,3 +303,19 @@ behaviour.
   step to apply them); `merge.prLabels` + `prLabelsNote` added to the config template. Kept DISTINCT from
   `merge.autoMerge.label` (a merge GATE the reaper requires) — this is only a filter STAMP. `auto` mode
   and PR mode without `prLabels` are 100% unchanged (backward compatible).
+- Sandboxed runs (BUN-16): OPT-IN `bunshin run --sandbox` (single-repo only) runs the unattended agent
+  inside a **Docker container** against a **fully isolated local clone** (`.bunshin/sandbox-work`) — the
+  host working tree is NEVER bind-mounted or written by the agent; only the CLI writes it (auto mode:
+  `git fetch <clone> <baseBranch>` + `git merge --ff-only` after a clean exit, no force if the base
+  moved; PR mode: via the remote, clone `origin` re-pointed). New pure `src/sandbox.js` —
+  `resolveSandbox()` (normalizes the optional `sandbox` block: `image`/`dockerfile`/`network`/`env`/
+  `mounts`; env mirrors `resolvePrLabels`, mounts → `{host,container}` with `~` preserved, `sandbox.*`
+  bad-type throws) + `buildDockerCommand()` (the `docker run …` wrapper) — unit-tested in
+  `test/sandbox.test.js` WITHOUT a Docker daemon; impure `dockerAvailable()` in `src/util.js`; the
+  clone/build/spawn/sync-back orchestration + `--sandbox --orchestrator` rejection in `src/run.js`.
+  Shipped reference image `template/sandbox/Dockerfile` (built `bunshin-sandbox:<pkgVersion>` when
+  `sandbox.image` unset). Explicit allowlist across the boundary (`sandbox.env`/`sandbox.mounts`,
+  `network` default `none`). Docker is an OPTIONAL runtime prereq gated to `--sandbox`. `sandbox` block +
+  `$comment` in the config template; "Sandbox awareness" note in `template/driver.md`; README "Sandboxed
+  runs (Docker Desktop)" section + Docker optional-prereq line; layout guard for the Dockerfile in
+  `test/gates-layout.test.js`. Absent `--sandbox`, behavior is 100% unchanged (backward compatible).

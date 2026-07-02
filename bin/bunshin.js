@@ -48,6 +48,9 @@ run options:
   --interval <t>        Re-check cadence for the /loop (default: 20m).
   --once                Process exactly one goal, then stop.
   --unattended          Bypass ALL of the agent CLI's permission prompts (hands-off; use with care).
+  --sandbox             Run the agent inside a Docker container against an ISOLATED CLONE of the repo
+                        (the host working tree is never touched). Opt-in; requires Docker running.
+                        See the sandbox block in bunshin.config.json. Not compatible with --orchestrator.
 
 watch options:
   --port <n>            Port for the dashboard (default: 4317).
@@ -63,7 +66,7 @@ function parseArgs(argv) {
   const opts = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--once' || a === '--unattended' || a === '--force' || a === '--open' || a === '--orchestrator') {
+    if (a === '--once' || a === '--unattended' || a === '--force' || a === '--open' || a === '--orchestrator' || a === '--sandbox') {
       opts[a.slice(2)] = true;
     } else if (a.startsWith('--')) {
       const key = a.slice(2);
