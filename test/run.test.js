@@ -28,6 +28,8 @@ test('once flag changes the scope wording', () => {
   const sf = 'C:/h/.bunshin/status/x.json';
   assert.match(buildPrompt('Demo', true, 'd.md', sf), /EXACTLY ONE/);
   assert.match(buildPrompt('Demo', false, 'd.md', sf), /serially/);
+  // The not-once scope must point the driver at the configurable concurrency (default serial).
+  assert.match(buildPrompt('Demo', false, 'd.md', sf), /concurrency/);
 });
 
 // --- Orchestrator mode (BUN-7): one board, many repositories -----------------
@@ -51,6 +53,7 @@ test('buildOrchestratorPrompt keeps the once/serial scope wording and heartbeat 
   const sf = 'C:/h/.bunshin/status/x.json';
   assert.match(buildOrchestratorPrompt('Acme', true, 'd.md', sf, 'bunshin.orchestrator.json', REPOS), /EXACTLY ONE/);
   assert.match(buildOrchestratorPrompt('Acme', false, 'd.md', sf, 'bunshin.orchestrator.json', REPOS), /serially/);
+  assert.match(buildOrchestratorPrompt('Acme', false, 'd.md', sf, 'bunshin.orchestrator.json', REPOS), /concurrency/);
   assert.match(buildOrchestratorPrompt('Acme', false, 'd.md', sf, 'bunshin.orchestrator.json', REPOS), /heartbeat/i);
 });
 

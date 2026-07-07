@@ -100,7 +100,8 @@ function readConfigSummary(configPath) {
 function buildPrompt(projectName, once, driverPath, statusFile) {
   const scope = once
     ? "process EXACTLY ONE goal from the Pending column"
-    : "process goals from the Pending column serially until Pending is empty";
+    : 'process goals from the Pending column until Pending is empty -- serially by default, ' +
+      "or up to the config's `concurrency` goals at a time";
   const driver = driverPath.split(/[\\/]/).join('/');
   const heartbeat = statusFile
     ? `As you work, write progress heartbeats to the status file at ${statusFile.split(/[\\/]/).join('/')} ` +
@@ -123,7 +124,8 @@ function buildPrompt(projectName, once, driverPath, statusFile) {
 function buildOrchestratorPrompt(projectName, once, driverPath, statusFile, configFilename, repositories) {
   const scope = once
     ? "process EXACTLY ONE goal from the Pending column"
-    : "process goals from the Pending column serially until Pending is empty";
+    : 'process goals from the Pending column until Pending is empty -- serially by default, ' +
+      "or up to the config's `concurrency` goals at a time";
   const driver = driverPath.split(/[\\/]/).join('/');
   const repoList = (repositories || []).map((r) => `${r.id} (${r.name})`).join(', ');
   const heartbeat = statusFile
