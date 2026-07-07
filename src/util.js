@@ -321,6 +321,27 @@ function resolvePrLabels(config) {
   return out;
 }
 
+// --- Configurable concurrency (goals in flight) --------------------------------
+// How many goals the driver may work AT THE SAME TIME (worktree cut, gates running).
+// Historically hard-serial (exactly one); a top-level `concurrency` in the config now bounds
+// it per repo/queue. Absent ⇒ 1 = serial (unchanged behavior). INTEGRATION (rebase +
+// gateChecks + merge) stays serial regardless — this only bounds the implement/gates work.
+// `resolveConcurrency` is pure (no fs/spawn) so it is unit-testable; the driver reads the
+// same top-level `concurrency` key. A non-number / non-integer / < 1 value throws a clear
+// `concurrency`-referencing error rather than silently degrading to serial.
+function resolveConcurrency(config) {
+  const raw = config && config.concurrency;
+  if (raw == null) return 1;
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 1) {
+    throw new Error(
+      `Invalid concurrency in ${CONFIG_FILENAME}: expected a whole number >= 1 ` +
+        `(how many goals may be in flight at once; absent => 1 = serial), got ` +
+        `${typeof raw === 'number' ? raw : JSON.stringify(raw)}.`
+    );
+  }
+  return raw;
+}
+
 // --- Orchestrator repositories -----------------------------------------------
 // In orchestrator mode one board's goals span MANY repositories, listed under
 // `repositories` in the orchestrator config. `resolveRepositories` validates and
@@ -473,6 +494,7 @@ module.exports = {
   resolveGates,
   resolveOpenPr,
   resolvePrLabels,
+  resolveConcurrency,
   resolveCommit,
   resolveRepositories,
   resolveRepoGates,
