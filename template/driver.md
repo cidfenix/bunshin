@@ -84,15 +84,28 @@ Jira note: moving a goal is a **workflow transition**, so the target status must
 from the current one — if it's rejected, report rather than forcing. (Trello `move_card` has no such
 constraint.)
 
+**Concurrency.** A top-level **`concurrency`** number in the config (absent ⇒ **1**) bounds how many
+goals may be **in flight** (worktree cut, gates running) at the same time. At `1` (the default)
+everything below reads exactly as written — strictly serial. Above `1`, take additional Pending goals
+(step 1) until `concurrency` goals are in flight and work them side by side: each goal keeps its OWN
+worktree/branch, its gates still run in order fail-fast, and a gate failure PARKS only that goal —
+the others continue. Gate agents for DIFFERENT goals may be dispatched in parallel. **INTEGRATION is
+always serial** regardless of `concurrency`: merge one goal at a time (each rebases onto the
+just-updated base and re-runs `commands.gateChecks` before its fast-forward). A non-integer or < 1
+`concurrency` is a config error — report it rather than guessing.
+
 ## One iteration
 
 0. **PR mode only** (`merge.mode` = `pr`): run the **REVIEW REAPER** (below) FIRST — reconcile every
    issue in **In Review** with its PR (merge the ones whose gate is now met, move merged ones to Done,
    park closed ones). Skip this step entirely in `auto` mode.
-1. Resolve the columns. If an issue is already in **In Progress** (a crashed/interrupted run), RESUME
-   that issue — its branch `<git.branchPrefix><N>-<slug>` and worktree may already exist; re-derive
-   N/slug from it (step 2) and continue from the gates (step 5). Otherwise read the **Pending** status
-   (a JQL search ordered by Rank/created) and take the FIRST issue.
+1. Resolve the columns. If issues are already in **In Progress** (a crashed/interrupted run), RESUME
+   them — each branch `<git.branchPrefix><N>-<slug>` and worktree may already exist; re-derive
+   N/slug from it (step 2) and continue from the gates (step 5). Then, while FEWER than `concurrency`
+   goals are in flight (default 1 — see **Concurrency** above), read the **Pending** status
+   (a JQL search ordered by Rank/created) and take issues from the TOP until `concurrency` goals are
+   in flight (at the default of 1: take the FIRST issue). Steps 2–6 below apply to EACH in-flight
+   goal (at `concurrency` 1 there is exactly one).
    - If **Pending** is empty (and nothing is In Progress): END THE TURN. The `/loop` mechanism will
      re-invoke this driver after its idle interval; no manual scheduling is needed. (In PR mode, any
      un-merged **In Review** issues are reconciled by the reaper on each subsequent wake.)
@@ -129,7 +142,8 @@ constraint.)
      `node_modules` paths. If so, delete the directory with a long-path-safe method (robocopy-mirror
      an empty dir over it, e.g. `robocopy <empty> <worktree> /MIR` then remove both), then run
      `git worktree prune`. The branch is kept regardless.
-7. If **Pending** still has issues, loop immediately (no wait). Otherwise go to step 1's idle path.
+7. If **Pending** still has issues (or goals are still in flight), loop immediately (no wait).
+   Otherwise go to step 1's idle path.
 
 ## Heartbeat (live status for `bunshin watch`)
 
@@ -168,6 +182,8 @@ you have just read the columns):
 - Entering INTEGRATION: `phase: "merge"`.
 - On PARK: `phase: "blocked"`, `blockedReason: "<the park reason>"`.
 - When **Pending** is empty and nothing is In Progress (idle path): `phase: "idle"`, `card: null`.
+- With `concurrency` > 1 the heartbeat keeps this SAME single-`card` shape: report the goal you are
+  acting on right now (the `queue.inProgress` count still shows how many are in flight).
 
 ## GATES (the configurable pipeline)
 
@@ -356,9 +372,11 @@ If `autoMerge.approvals` is `0` AND `autoMerge.label` is `""`, the reaper NEVER 
 syncs status (humans merge on GitHub; the reaper moves the issue to Done once it sees the merge).
 
 ## Rules
-- SERIAL implementation — never create a second worktree while one goal is being implemented. (In PR
-  mode multiple PRs may sit open in **In Review** at once; that's fine — only the
-  implement→gates→integrate work is serial. The reaper merges open PRs at the start of each iteration.)
+- BOUNDED concurrency — never have more than `concurrency` goals (default 1 = strictly serial: never
+  a second worktree while one goal is being implemented) in flight at once, and INTEGRATE serially
+  no matter what: one merge at a time, each rebased onto the just-updated base with
+  `commands.gateChecks` re-run. (In PR mode multiple PRs may sit open in **In Review** at once;
+  that's fine — the reaper merges open PRs at the start of each iteration.)
 - PARK on the FIRST gate failure. No repair, no retry. Playwright infra flakes are parked too; name
   them in the reason so they're easy to re-queue (move the issue back to Pending).
 - NEVER merge anything that didn't pass ALL its configured gates before the rebase AND the `implement`

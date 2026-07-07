@@ -97,6 +97,9 @@
     }
   },
 
+  "concurrency": 1,
+  "concurrencyNote": "OPTIONAL. How many goals the driver may work AT THE SAME TIME across ALL repositories (worktree cut, gates running) — a whole number >= 1. Absent/1 ⇒ strictly serial (unchanged behavior). Above 1 the driver takes more Pending goals until that many are in flight, each in its OWN worktree; a gate failure parks only that goal. INTEGRATION (rebase + gateChecks + fast-forward/PR) is ALWAYS serial regardless. The watch heartbeat still reports one card: the goal currently being acted on.",
+
   "gates": {
     "$comment": "The DEFAULT ordered gate pipeline the driver runs for each goal — applied to any repository that does NOT define its own `gates` block above. In ORCHESTRATOR mode, keep `triage` FIRST — it decides which repository the goal belongs to before anything is cut/built; a goal it cannot place is moved to Blocked. The rest of the pipeline is the usual preset (drop the web-only `verify` gate for non-web repos, add custom command/skill steps, etc.). A repository entry can OVERRIDE this whole list with its own `gates` (its steps run AFTER triage picks it — don't repeat `triage` there). Absent/empty steps ⇒ the built-in default [\"implement\", \"verify\", \"review\"] (no triage) — so ALWAYS set steps here for orchestrator mode.",
     "stepsNote": "Built-in gates: \"triage\" = pick the target repository from the goal text + each repo's description/CLAUDE.md/README (orchestrator-only; PARK/Blocked if undecidable); \"implement\" = code it TDD-style + commands.install & commands.gateChecks; \"verify\" = Playwright behavioral smoke (WEB-ONLY); \"review\" = fresh adversarial APPROVE/BLOCK. Custom steps: {\"command\":\"<shell>\",\"name\":\"...\"} (non-zero exit ⇒ Blocked) or {\"skill\":\"<name>\",\"name\":\"...\"} — e.g. supply your OWN triage gate as a {\"skill\":\"...\"} step in place of the built-in. Steps run in array order, fail-fast.",
