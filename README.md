@@ -345,8 +345,11 @@ drop `verify`, or splice in custom steps via `gates.steps`
    Any gate failure → **Blocked** with the reason (branch kept).
 
 The card's list is the authoritative status, so a run is **crash-resumable**. Implementation is
-**serial** and parks on the **first** gate failure — no auto-repair; you re-queue by dragging the card
-back to **Pending**. (In `pr` mode, multiple PRs can sit in **In Review** at once.)
+**serial by default** — set a top-level `"concurrency"` in the config (a whole number, default `1`)
+to let the driver work that many goals at once, each in its own worktree; integration (rebase +
+re-gate + merge) stays serial regardless. A goal parks on the **first** gate failure — no
+auto-repair; you re-queue by dragging the card back to **Pending**. (In `pr` mode, multiple PRs can
+sit in **In Review** at once.)
 
 ## Orchestrator mode — one board, many repositories
 
