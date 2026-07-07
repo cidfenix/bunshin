@@ -29,7 +29,7 @@
 **Interfaces:**
 - Produces: `resolveConcurrency(config) -> number` — exported from `src/util.js`. Absent/`null` `config.concurrency` ⇒ `1`; a positive integer ⇒ itself; anything else throws an `Error` whose message contains `concurrency` and `bunshin.config.json`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `test/concurrency.test.js`:
 
@@ -87,12 +87,12 @@ test('the error names the config file', () => {
 console.log(`\nconcurrency.test.js: ${passed} passed`);
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node test/concurrency.test.js`
 Expected: FAIL — `TypeError: resolveConcurrency is not a function` (it isn't exported yet).
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `src/util.js`, insert after the closing brace of `resolvePrLabels` (before the `--- Orchestrator repositories ---` banner):
 
@@ -121,19 +121,19 @@ function resolveConcurrency(config) {
 
 Add `resolveConcurrency,` to `module.exports` (after `resolvePrLabels,`).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node test/concurrency.test.js`
 Expected: PASS — `concurrency.test.js: 6 passed`.
 
-- [ ] **Step 5: Wire into `npm test` and run the full suite**
+- [x] **Step 5: Wire into `npm test` and run the full suite**
 
 In `package.json` line 9, insert `node test/concurrency.test.js && ` before `node test/orchestrator.test.js` (keeping the existing order otherwise).
 
 Run: `npm test`
 Expected: every suite passes, including the new one.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/util.js test/concurrency.test.js package.json
@@ -153,7 +153,7 @@ git commit -m "feat(config): resolveConcurrency — configurable goals-in-flight
 - Consumes: nothing new (pure string builders; concurrency itself is read by the driver from the config, not plumbed through the prompt).
 - Produces: prompts that still match `/serially/` and now also `/concurrency/`.
 
-- [ ] **Step 1: Extend the tests (failing first)**
+- [x] **Step 1: Extend the tests (failing first)**
 
 In `test/run.test.js`, next to the existing `assert.match(buildPrompt('Demo', false, 'd.md', sf), /serially/);` (line ~30) add:
 
@@ -168,12 +168,12 @@ and next to the orchestrator `/serially/` assertion (line ~53) add:
   assert.match(buildOrchestratorPrompt('Acme', false, 'd.md', sf, 'bunshin.orchestrator.json', REPOS), /concurrency/);
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node test/run.test.js`
 Expected: FAIL — the new `/concurrency/` match throws `AssertionError`.
 
-- [ ] **Step 3: Update both scope strings**
+- [x] **Step 3: Update both scope strings**
 
 In BOTH `buildPrompt` and `buildOrchestratorPrompt`, replace the not-once scope string:
 
@@ -190,12 +190,12 @@ with:
 
 (The `--once` branch is untouched.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `node test/run.test.js && npm test`
 Expected: PASS (old `/serially/` assertions still match "serially by default").
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/run.js test/run.test.js
@@ -216,7 +216,7 @@ git commit -m "feat(run): launch prompt names the configurable concurrency"
 - Consumes: the `concurrency` key semantics from Task 1 (absent ⇒ 1; whole number ≥ 1).
 - Produces: the driver-facing contract later docs reference: at most `concurrency` goals in flight; integration always serial; heartbeat unchanged (single `card` = the goal currently being acted on).
 
-- [ ] **Step 1: Add a Concurrency paragraph to the driver intro**
+- [x] **Step 1: Add a Concurrency paragraph to the driver intro**
 
 In `template/driver.md`, insert a new paragraph immediately BEFORE the `## One iteration` heading:
 
@@ -232,7 +232,7 @@ just-updated base and re-runs `commands.gateChecks` before its fast-forward). A 
 `concurrency` is a config error — report it rather than guessing.
 ```
 
-- [ ] **Step 2: Rewrite iteration step 1 (take up to `concurrency` goals)**
+- [x] **Step 2: Rewrite iteration step 1 (take up to `concurrency` goals)**
 
 Replace step 1 of `## One iteration`:
 
@@ -255,7 +255,7 @@ with:
    goal (at `concurrency` 1 there is exactly one).
 ```
 
-- [ ] **Step 3: Note multi-goal heartbeat + adjust step 7**
+- [x] **Step 3: Note multi-goal heartbeat + adjust step 7**
 
 In the `## Heartbeat` section, append this bullet to the "Write a heartbeat at each of these moments" list:
 
@@ -277,7 +277,7 @@ with:
    Otherwise go to step 1's idle path.
 ```
 
-- [ ] **Step 4: Replace the SERIAL rule**
+- [x] **Step 4: Replace the SERIAL rule**
 
 In `## Rules`, replace the first bullet:
 
@@ -297,7 +297,7 @@ with:
   that's fine — the reaper merges open PRs at the start of each iteration.)
 ```
 
-- [ ] **Step 5: Add `concurrency` to both config templates**
+- [x] **Step 5: Add `concurrency` to both config templates**
 
 In `template/bunshin.config.template.json`, insert between the `commit` block and the `gates` block (as two top-level keys, matching the `prLabels`/`prLabelsNote` scalar-plus-note style):
 
@@ -308,12 +308,12 @@ In `template/bunshin.config.template.json`, insert between the `commit` block an
 
 In `template/bunshin.orchestrator.template.json`, insert the same two keys between `merge` and `gates`, with the note's first sentence adapted: `"OPTIONAL. How many goals the driver may work AT THE SAME TIME across ALL repositories (worktree cut, gates running) — a whole number >= 1. ..."` (rest identical).
 
-- [ ] **Step 6: Sanity-check the templates parse and the suite passes**
+- [x] **Step 6: Sanity-check the templates parse and the suite passes**
 
 Run: `node -e "JSON.parse(require('fs').readFileSync('template/bunshin.config.template.json','utf8')); JSON.parse(require('fs').readFileSync('template/bunshin.orchestrator.template.json','utf8')); console.log('templates ok')" && npm test`
 Expected: `templates ok`, all suites pass (gates-layout guard included).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add template/driver.md template/bunshin.config.template.json template/bunshin.orchestrator.template.json
@@ -332,7 +332,7 @@ git commit -m "feat(driver): bounded concurrency — work up to config concurren
 **Interfaces:**
 - Consumes: the contract from Tasks 1 and 3 (key name `concurrency`, default 1, integration always serial).
 
-- [ ] **Step 1: Update README's How-a-goal-flows wording**
+- [x] **Step 1: Update README's How-a-goal-flows wording**
 
 Replace (README lines 347–349):
 
@@ -353,7 +353,7 @@ auto-repair; you re-queue by dragging the card back to **Pending**. (In `pr` mod
 sit in **In Review** at once.)
 ```
 
-- [ ] **Step 2: Update CLAUDE.md LOCKED decision 4**
+- [x] **Step 2: Update CLAUDE.md LOCKED decision 4**
 
 In CLAUDE.md line ~72, replace:
 
@@ -370,7 +370,7 @@ with:
    its **first** gate failure (no auto-repair/retry).
 ```
 
-- [ ] **Step 3: Update CLAUDE.md's `src/util.js` key-files row and add a status entry**
+- [x] **Step 3: Update CLAUDE.md's `src/util.js` key-files row and add a status entry**
 
 In the `src/util.js` row of the key-files table, after the `resolvePrLabels` description, add:
 
@@ -392,12 +392,12 @@ Append to `## Current status`:
   `test/run.test.js`).
 ```
 
-- [ ] **Step 4: Run the suite (README consistency guard lives in gates-layout.test.js)**
+- [x] **Step 4: Run the suite (README consistency guard lives in gates-layout.test.js)**
 
 Run: `npm test`
 Expected: all suites pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add README.md CLAUDE.md
