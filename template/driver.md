@@ -74,7 +74,7 @@ key→`idShort`, JQL search→`get_cards_by_list_id`):
 | --- | --- | --- |
 | Select / scope the queue | `jira.projectKey` (+ `jira.jql` if set) at `jira.baseUrl` | `set_active_board` with `board.boardId` |
 | List the columns | the project's statuses → match to `jira.statuses.*` | `get_lists` → match to `board.lists.*` |
-| Read a column's goals, in order | search issues `project=KEY AND status="<name>"` (JQL; order by Rank/created) | `get_cards_by_list_id` (by `pos`) |
+| Read a column's goals, in order | search issues `project=KEY AND status="<name>"` (+ `jira.jql` if set) `ORDER BY Rank ASC` — the same order as the Jira board/backlog. If the Jira instance rejects `Rank` as an order-by field (some Work Management / non-agile projects lack it), fall back to `ORDER BY created ASC` | `get_cards_by_list_id` (by `pos`) |
 | A goal's stable id (N) | issue key (e.g. `PROJ-123`) | card `idShort` |
 | A goal's title | issue summary | card name |
 | Move a goal to a column | **transition** the issue to that status | `move_card` to the list |
@@ -103,7 +103,7 @@ just-updated base and re-runs `commands.gateChecks` before its fast-forward). A 
    them — each branch `<git.branchPrefix><N>-<slug>` and worktree may already exist; re-derive
    N/slug from it (step 2) and continue from the gates (step 5). Then, while FEWER than `concurrency`
    goals are in flight (default 1 — see **Concurrency** above), read the **Pending** status
-   (a JQL search ordered by Rank/created) and take issues from the TOP until `concurrency` goals are
+   (a JQL search with `ORDER BY Rank ASC`, matching the Jira board/backlog order — see the Provider adapter table above for the fallback when `Rank` isn't sortable) and take issues from the TOP until `concurrency` goals are
    in flight (at the default of 1: take the FIRST issue). Steps 2–6 below apply to EACH in-flight
    goal (at `concurrency` 1 there is exactly one).
    - If **Pending** is empty (and nothing is In Progress): END THE TURN. The `/loop` mechanism will

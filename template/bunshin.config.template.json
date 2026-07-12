@@ -36,7 +36,7 @@
     "baseUrl": "https://your-org.atlassian.net",
     "projectKey": "PROJ",
     "jql": "",
-    "jqlNote": "Optional extra JQL to scope the queue (e.g. \"labels = bunshin\"), ANDed with the project + status filters. Empty = the whole project.",
+    "jqlNote": "Optional extra JQL to scope the queue (e.g. \"labels = bunshin\"), ANDed with the project + status filters. Empty = the whole project. Do NOT put an ORDER BY here — the driver always reads Pending issues in the Jira board/backlog order (ORDER BY Rank ASC, falling back to created ASC if Rank isn't sortable); a trailing ORDER BY in this field would break the ANDed query.",
     "statuses": {
       "$comment": "Jira status NAMES per logical column — one name OR an array of aliases, matched case-insensitively and ignoring spaces/hyphens/underscores (exactly like board.lists). 'inReview' is only used when merge.mode is 'pr'.",
       "pending": ["To Do", "Selected for Development", "Backlog"],
