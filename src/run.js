@@ -97,7 +97,7 @@ function readConfigSummary(configPath) {
 // root. We hand Claude Code the absolute path to the package driver so one canonical copy
 // drives every repo. The driver itself reads ./bunshin.config.json and dispatches the
 // built-in gate presets that sit in `gates/` beside it.
-function buildPrompt(projectName, once, driverPath, statusFile) {
+function buildPrompt(projectName, once, driverPath, statusFile, agentKind) {
   const scope = once
     ? "process EXACTLY ONE goal from the Pending column"
     : 'process goals from the Pending column until Pending is empty -- serially by default, ' +
@@ -107,13 +107,27 @@ function buildPrompt(projectName, once, driverPath, statusFile) {
     ? `As you work, write progress heartbeats to the status file at ${statusFile.split(/[\\/]/).join('/')} ` +
       `following the driver's Heartbeat contract (best-effort; never fail the loop if the write fails). `
     : '';
+  const contextCleanup = contextCleanupNote(agentKind);
   return (
     `Execute the ${projectName} Bunshin: read the Bunshin driver at ${driver} (its built-in gate ` +
     `presets are in the gates/ folder beside it) and follow it to ${scope} -- each through all three gates to a ` +
     `fast-forward merge. The per-repo config is ${CONFIG_FILENAME} at the root of the current repo. ` +
     heartbeat +
+    contextCleanup +
     `Then stop until the next scheduled run.`
   );
+}
+
+// `/compact` is a Claude Code slash command -- codex exec restarts fresh per invocation, so it never
+// accumulates cross-goal session context the way a persistent `/loop` conversation does. Only mention
+// the cadence when the driver is actually running as Claude Code; the concrete interval lives in the
+// config (contextCleanupEvery, per resolveContextCleanup) and the driver reads it directly, same as
+// concurrency.
+function contextCleanupNote(agentKind) {
+  return agentKind === 'codex'
+    ? ''
+    : "Per the config's `contextCleanupEvery` setting, periodically run `/compact` to keep your " +
+        'context bounded before continuing (see the driver\'s Context cleanup contract). ';
 }
 
 // ORCHESTRATOR mode: one board's goals span MANY repositories (listed in the orchestrator
@@ -121,7 +135,7 @@ function buildPrompt(projectName, once, driverPath, statusFile) {
 // goal text against the configured repositories (their description + CLAUDE.md/README) to pick
 // ONE repo, then implements there. A goal triage can't place is moved to Blocked. Pure +
 // unit-testable, exactly like buildPrompt.
-function buildOrchestratorPrompt(projectName, once, driverPath, statusFile, configFilename, repositories) {
+function buildOrchestratorPrompt(projectName, once, driverPath, statusFile, configFilename, repositories, agentKind) {
   const scope = once
     ? "process EXACTLY ONE goal from the Pending column"
     : 'process goals from the Pending column until Pending is empty -- serially by default, ' +
@@ -132,6 +146,7 @@ function buildOrchestratorPrompt(projectName, once, driverPath, statusFile, conf
     ? `As you work, write progress heartbeats to the status file at ${statusFile.split(/[\\/]/).join('/')} ` +
       `following the driver's Heartbeat contract (best-effort; never fail the loop if the write fails). `
     : '';
+  const contextCleanup = contextCleanupNote(agentKind);
   return (
     `Execute the ${projectName} Bunshin in ORCHESTRATOR MODE across ${(repositories || []).length} ` +
     `repositories [${repoList}]: read the Bunshin driver at ${driver} (its built-in gate presets are in the ` +
@@ -143,6 +158,7 @@ function buildOrchestratorPrompt(projectName, once, driverPath, statusFile, conf
     `missing info -- do NOT guess. Otherwise implement it in that repository's worktree through the ` +
     `remaining gates to integration. ` +
     heartbeat +
+    contextCleanup +
     `Then stop until the next scheduled run.`
   );
 }
@@ -277,7 +293,7 @@ async function run(opts) {
 
     // The driver runs inside the container (cwd /work); tell it to heartbeat to the container status
     // path, which we bind-mount to the host status file so `bunshin watch` still sees progress.
-    const sandboxPrompt = buildPrompt(projectName, once, packageDriverPath(), CONTAINER_STATUS_PATH);
+    const sandboxPrompt = buildPrompt(projectName, once, packageDriverPath(), CONTAINER_STATUS_PATH, summary.agentKind);
     const agentCommand = buildLaunchCommand(agent, { prompt: sandboxPrompt, interval, unattended });
     const dockerCommand = buildDockerCommand({
       image,
@@ -339,8 +355,8 @@ async function run(opts) {
   }
 
   const prompt = orchestrator
-    ? buildOrchestratorPrompt(projectName, once, packageDriverPath(), statusFile, configFilename, repositories)
-    : buildPrompt(projectName, once, packageDriverPath(), statusFile);
+    ? buildOrchestratorPrompt(projectName, once, packageDriverPath(), statusFile, configFilename, repositories, summary.agentKind)
+    : buildPrompt(projectName, once, packageDriverPath(), statusFile, summary.agentKind);
 
   console.log(
     `Launching Bunshin via ${agent.label}${orchestrator ? ` in ORCHESTRATOR mode over ${repositories.length} repos` : ''} ` +

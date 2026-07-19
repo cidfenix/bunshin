@@ -32,6 +32,21 @@ test('once flag changes the scope wording', () => {
   assert.match(buildPrompt('Demo', false, 'd.md', sf), /concurrency/);
 });
 
+// --- Context cleanup (driver /compact cadence): Claude only ------------------
+test('buildPrompt mentions contextCleanupEvery + /compact for claude (default/unspecified agentKind)', () => {
+  const sf = 'C:/h/.bunshin/status/x.json';
+  const p = buildPrompt('Demo', false, 'd.md', sf, 'claude');
+  assert.match(p, /contextCleanupEvery/);
+  assert.match(p, /\/compact/);
+});
+
+test('buildPrompt omits the /compact note for agentKind "codex"', () => {
+  const sf = 'C:/h/.bunshin/status/x.json';
+  const p = buildPrompt('Demo', false, 'd.md', sf, 'codex');
+  assert.doesNotMatch(p, /contextCleanupEvery/);
+  assert.doesNotMatch(p, /\/compact/);
+});
+
 // --- Orchestrator mode (BUN-7): one board, many repositories -----------------
 const REPOS = [
   { id: 'web', name: 'Acme Web', remote: 'r1', path: '../acme-web', baseBranch: null, description: '' },
@@ -60,6 +75,15 @@ test('buildOrchestratorPrompt keeps the once/serial scope wording and heartbeat 
 test('buildOrchestratorPrompt tells triage to Block a goal it cannot place', () => {
   const p = buildOrchestratorPrompt('Acme', false, 'd.md', 'sf.json', 'bunshin.orchestrator.json', REPOS);
   assert.match(p, /Blocked/i);
+});
+
+test('buildOrchestratorPrompt mentions contextCleanupEvery + /compact for claude, omits it for codex', () => {
+  const claudeP = buildOrchestratorPrompt('Acme', false, 'd.md', 'sf.json', 'bunshin.orchestrator.json', REPOS, 'claude');
+  assert.match(claudeP, /contextCleanupEvery/);
+  assert.match(claudeP, /\/compact/);
+  const codexP = buildOrchestratorPrompt('Acme', false, 'd.md', 'sf.json', 'bunshin.orchestrator.json', REPOS, 'codex');
+  assert.doesNotMatch(codexP, /contextCleanupEvery/);
+  assert.doesNotMatch(codexP, /\/compact/);
 });
 
 console.log(`\nrun.test.js: ${passed} passed`);

@@ -351,6 +351,13 @@ re-gate + merge) stays serial regardless. A goal parks on the **first** gate fai
 auto-repair; you re-queue by dragging the card back to **Pending**. (In `pr` mode, multiple PRs can
 sit in **In Review** at once.)
 
+A long-running `/loop` session accumulates conversation history as it drains goal after goal.
+`"contextCleanupEvery"` (a whole number, default `5`, `0` to disable) has the driver run Claude Code's
+`/compact` after every N completed goals to keep its context bounded proactively, instead of relying
+only on reactive auto-compaction near the limit. One counter for the whole session (global across all
+repos in orchestrator mode). Claude Code only — codex's `exec` restarts fresh per invocation, so there's
+no accumulating session context to compact there.
+
 ## Orchestrator mode — one board, many repositories
 
 Normally one board drives one repo. **Orchestrator mode** lets a single Jira project / Trello board

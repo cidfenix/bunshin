@@ -44,6 +44,14 @@ anywhere**; the Bunshin CLI on the host fast-forwards its own base branch from t
 In **PR** mode you push + open the PR against the remote exactly as today (the clone's `origin` already
 points at the real remote). Nothing else changes.
 
+**Context cleanup.** If the launch prompt named a `contextCleanupEvery` cadence (Claude Code only --
+`codex exec` restarts fresh per invocation, so this doesn't apply there), track a running count of
+completed goals across the session -- increment it at INTEGRATION (always serial, so the count is
+unambiguous even with `concurrency` > 1 goals in flight). When the count reaches a multiple of that
+cadence, run `/compact` before picking up the next goal, to keep your context bounded ahead of the next
+batch rather than relying only on reactive auto-compaction. One counter for the WHOLE session: in
+**ORCHESTRATOR MODE** it counts goals completed across ALL repositories, not per repo.
+
 ## The queue (Trello or Jira)
 
 `provider.kind` in the config selects the tracker — **`jira`** (default; absent ⇒ jira) or

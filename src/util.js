@@ -342,6 +342,26 @@ function resolveConcurrency(config) {
   return raw;
 }
 
+// --- Configurable context cleanup (driver /compact cadence) --------------------
+// A long `/loop` driver session accumulates conversation history as it drains goals. A
+// top-level `contextCleanupEvery` bounds how many COMPLETED goals pass between proactive
+// `/compact` calls (Claude Code only -- codex exec restarts fresh per invocation, so there's
+// no accumulating session context to compact there). Absent ⇒ 5. `0` ⇒ disabled. `resolveContextCleanup`
+// is pure (no fs/spawn) so it is unit-testable; a non-number / non-integer / < 0 value throws a clear
+// `contextCleanupEvery`-referencing error.
+function resolveContextCleanup(config) {
+  const raw = config && config.contextCleanupEvery;
+  if (raw == null) return 5;
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 0) {
+    throw new Error(
+      `Invalid contextCleanupEvery in ${CONFIG_FILENAME}: expected a whole number >= 0 ` +
+        `(how many completed goals between /compact calls; absent => 5, 0 => disabled), got ` +
+        `${typeof raw === 'number' ? raw : JSON.stringify(raw)}.`
+    );
+  }
+  return raw;
+}
+
 // --- Orchestrator repositories -----------------------------------------------
 // In orchestrator mode one board's goals span MANY repositories, listed under
 // `repositories` in the orchestrator config. `resolveRepositories` validates and
@@ -495,6 +515,7 @@ module.exports = {
   resolveOpenPr,
   resolvePrLabels,
   resolveConcurrency,
+  resolveContextCleanup,
   resolveCommit,
   resolveRepositories,
   resolveRepoGates,
