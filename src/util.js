@@ -321,6 +321,26 @@ function resolvePrLabels(config) {
   return out;
 }
 
+// --- Configurable auto-push (auto mode only) ----------------------------------
+// `merge.mode: "auto"` fast-forward-merges a finished goal into `git.baseBranch` LOCALLY — by
+// design, no remote/GitHub is needed. `merge.autoPush` (default true) additionally pushes that
+// base branch to `merge.remote` right after each such local change (the driver's own INTEGRATION
+// merge, and the --sandbox host CLI's sync-back), so a repo that DOES have a remote doesn't
+// silently drift behind it. Best-effort at the call site (no remote / a failed push never fails
+// the goal) — this resolver only validates the boolean. `resolveAutoPush` is pure (no fs/spawn) so
+// it is unit-testable. A non-boolean value throws a clear `merge.autoPush`-referencing error.
+function resolveAutoPush(config) {
+  const raw = config && config.merge && config.merge.autoPush;
+  if (raw == null) return true;
+  if (typeof raw !== 'boolean') {
+    throw new Error(
+      `Invalid merge.autoPush in ${CONFIG_FILENAME}: expected a boolean (absent => true), got ` +
+        `${JSON.stringify(raw)}.`
+    );
+  }
+  return raw;
+}
+
 // --- Configurable concurrency (goals in flight) --------------------------------
 // How many goals the driver may work AT THE SAME TIME (worktree cut, gates running).
 // Historically hard-serial (exactly one); a top-level `concurrency` in the config now bounds
@@ -514,6 +534,7 @@ module.exports = {
   resolveGates,
   resolveOpenPr,
   resolvePrLabels,
+  resolveAutoPush,
   resolveConcurrency,
   resolveContextCleanup,
   resolveCommit,

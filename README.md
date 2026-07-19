@@ -329,7 +329,10 @@ drop `verify`, or splice in custom steps via `gates.steps`
 4. **`review`:** a fresh adversarial agent reviews the diff and returns BLOCK or APPROVE.
 5. **Integrate** (configurable via `merge.mode`):
    - **`auto`** (default): rebase, re-run `gateChecks`, fast-forward merge into the base branch, card
-     → **Done**. No remote or GitHub needed.
+     → **Done**. No remote or GitHub needed. If a remote *is* configured, `merge.autoPush` (default
+     `true`) pushes the base branch right after each merge so it doesn't silently drift ahead of the
+     remote — best-effort (no remote, or a failed push, is logged and never blocks the goal); set it
+     to `false` to keep the fully local behavior.
    - **`pr`**: push the branch, open a GitHub **Pull Request**, card → **In Review**. A review reaper
      then auto-merges it once your gate is met — **≥ N approvals and/or a label** (optionally green
      checks) — or, with the gate off, simply marks the card **Done** after a human merges. Needs a

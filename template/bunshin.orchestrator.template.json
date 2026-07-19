@@ -88,6 +88,8 @@
     "$comment": "How a goal that passes all gates is integrated INTO ITS repository. 'auto' (default) = local fast-forward merge into that repo's baseBranch. 'pr' = push + open a GitHub PR (needs a remote + gh/GitHub MCP).",
     "mode": "auto",
     "remote": "origin",
+    "autoPush": true,
+    "autoPushNote": "OPTIONAL (mode='auto' only). Push each repo's baseBranch to merge.remote right after each local fast-forward merge. Absent ⇒ true. Best-effort: no remote, or the push fails, ⇒ logged and the run continues — never parked over this. Set to false to keep the fully local, no-remote-needed behavior. This is orchestrator-global only — repositories[] entries can override `gates`/`commands` but not `merge`.",
     "prMethod": "squash",
     "autoMerge": {
       "$comment": "When mode='pr', an open PR auto-merges once ALL gates set here pass. Disable a gate with its neutral value: approvals 0, label \"\". BOTH disabled ⇒ open PRs but never auto-merge (a human merges; the reaper syncs to Done).",

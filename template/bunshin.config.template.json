@@ -58,6 +58,8 @@
     "$comment": "How a goal that passes all three gates is integrated. 'auto' (default) = local fast-forward merge into baseBranch — no remote or GitHub needed. 'pr' = push the branch, open a GitHub Pull Request, move the card to the board.lists.inReview column, and let autoMerge below decide when it merges (so humans can review first). PR mode needs a git remote AND GitHub access: an authenticated `gh` CLI or a GitHub MCP server.",
     "mode": "auto",
     "remote": "origin",
+    "autoPush": true,
+    "autoPushNote": "OPTIONAL (mode='auto' only). Push git.baseBranch to merge.remote right after each local fast-forward merge (and after a --sandbox run's sync-back), so the remote doesn't silently drift behind. Absent ⇒ true. Best-effort: no remote configured, or the push fails, ⇒ logged and the run continues — the goal is still Done, never parked over this. Set to false to keep the fully local, no-remote-needed behavior.",
     "prMethod": "squash",
     "openPr": {
       "$comment": "OPTIONAL (mode='pr' only). How the driver OPENS the PR. Absent/empty ⇒ the built-in default `gh pr create --base <baseBranch> --head <branch> --fill`. To use your own PR flow (e.g. a custom Claude `/open-pr` slash command that applies your PR template), set EITHER \"skill\" (an agent skill / slash command the driver invokes) OR \"command\" (a shell command) — not both. It receives the branch, the base branch, and the goal context; it is RESPONSIBLE for creating the PR AND printing/returning the PR URL (the driver records `PR: <url>` on the issue). Example skill: {\"skill\": \"/open-pr\"}. Example command: {\"command\": \"gh pr create --base $BASE --head $BRANCH --template .github/pr.md\"}. Delete this block to keep the default.",

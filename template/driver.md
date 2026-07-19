@@ -326,6 +326,11 @@ at it).
 2. Re-run the `implement` gate's deterministic checks in the worktree (`commands.gateChecks`). Fail →
    PARK with reason `Merge re-gate failed — <short error>`.
 3. Fast-forward merge: `git checkout <git.baseBranch> && git merge --ff-only <git.branchPrefix><N>-<slug>`.
+   **Not sandboxed** (see **Sandbox awareness** above — sandboxed runs never push here; the host CLI
+   does it after sync-back) and `merge.autoPush` is not explicitly `false` (absent ⇒ true): push the
+   base branch, `git push <merge.remote> <git.baseBranch>`. **Best-effort** — no remote named
+   `merge.remote`, or the push failing for any reason, is NOT a park: report it and continue: the merge
+   already succeeded locally and the goal is still Done.
 4. Clean up: `git worktree remove <git.worktreeBaseDir>/<N>-<slug>` and
    `git branch -d <git.branchPrefix><N>-<slug>`. (On Windows, if `git worktree remove` fails with
    "Filename too long", delete the dir with a long-path-safe method then `git worktree prune` — see

@@ -17,6 +17,7 @@ const {
   resolveAgent,
   buildLaunchCommand,
   resolveRepositories,
+  resolveAutoPush,
   exists,
 } = require('./util');
 const { resolveSandbox, buildDockerCommand } = require('./sandbox');
@@ -31,7 +32,10 @@ const CONTAINER_STATUS_PATH = '/tmp/bunshin-status.json';
 // baseBranch into the host repo, then fast-forward the host baseBranch to it. If the host base moved
 // and a fast-forward is impossible, do NOT force — report and leave the clone in place for
 // inspection (the goal's commits are safe there). Runs only on a clean container exit, auto mode only.
-function syncBackFromClone(root, cloneDir, baseBranch) {
+// When `merge.autoPush` (default true) is set, also push the freshly-merged base branch to
+// `merge.remote` so it doesn't silently drift behind the remote — best-effort: no remote, or a
+// failed push, is logged and does NOT undo the merge or fail the run.
+function syncBackFromClone(root, cloneDir, baseBranch, autoPush, remoteName) {
   const fetch = spawnSync('git', ['fetch', cloneDir, baseBranch], { cwd: root, stdio: 'inherit', shell: false });
   if (fetch.status !== 0) {
     console.error(`Sandbox sync-back: \`git fetch ${cloneDir} ${baseBranch}\` failed; the clone is left at ${cloneDir}.`);
@@ -43,6 +47,16 @@ function syncBackFromClone(root, cloneDir, baseBranch) {
       `Sandbox sync-back: the host ${baseBranch} could not be fast-forwarded (it moved during the run).\n` +
         `        NOT forcing. The goal's commits are safe in the clone at ${cloneDir} — merge them manually.`
     );
+    return;
+  }
+  if (autoPush) {
+    const push = spawnSync('git', ['push', remoteName, baseBranch], { cwd: root, stdio: 'inherit', shell: false });
+    if (push.status !== 0) {
+      console.error(
+        `Sandbox sync-back: \`git push ${remoteName} ${baseBranch}\` failed (no such remote, or a network/auth\n` +
+          `        issue) — the local merge is unaffected; push it yourself when ready.`
+      );
+    }
   }
 }
 
@@ -261,6 +275,7 @@ async function run(opts) {
     const mergeMode = summary.mergeMode;
     const baseBranch = summary.baseBranch || 'main';
     const remoteName = (cfg.merge && cfg.merge.remote) || 'origin';
+    const autoPush = resolveAutoPush(cfg); // throws a clear merge.autoPush-referencing error on a bad config
 
     // Resolve/ensure the image: an explicit sandbox.image is used as-is; otherwise build the shipped
     // reference image, tagged by package version so it only rebuilds on a Bunshin upgrade.
@@ -344,7 +359,7 @@ async function run(opts) {
       // pushed + opened the PR against the remote, so sync-back is a no-op.
       if ((code === 0 || code == null) && mergeMode !== 'pr') {
         try {
-          syncBackFromClone(root, cloneDir, baseBranch);
+          syncBackFromClone(root, cloneDir, baseBranch, autoPush, remoteName);
         } catch (e) {
           console.error(`Sandbox sync-back error: ${e && e.message ? e.message : e}`);
         }
