@@ -113,7 +113,13 @@ Re-read `bunshin.config.json`: confirm it's valid JSON and no `{{PLACEHOLDER}}` 
 
 ## 8. Done
 Summarize the final config and which MCP servers are now configured. Tell the user to:
-1. **Commit `bunshin.config.json`** (it's the only file Bunshin adds to the repo).
+1. **Commit `bunshin.config.json`** (plus, once goals start landing, the changelog — see 3).
 2. Make sure the repo has a **`CLAUDE.md`** describing the project (the agents read it for context).
-3. Launch the loop: **`npx github:cidfenix/bunshin run`** (or `--once` / `--interval 30m` /
+   Keep it a description of the **current state** — architecture, conventions, layout — NOT a log.
+3. Each finished goal appends one "what I shipped" entry to the repo's **changelog**: the
+   `changelog` path in the config, **`docs/CHANGELOG.md`** by default (created on the first goal;
+   set `false` to disable). If this repo currently keeps that history inside `CLAUDE.md`, move it to
+   the changelog now — an append-only log inside `CLAUDE.md` grows without bound and every agent
+   re-reads it on every goal.
+4. Launch the loop: **`npx github:cidfenix/bunshin run`** (or `--once` / `--interval 30m` /
    `--unattended`).

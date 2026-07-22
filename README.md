@@ -322,7 +322,8 @@ drop `verify`, or splice in custom steps via `gates.steps`
    default the agent makes one scoped Conventional-Commit `git commit`, but you can point it at your own
    flow — a custom `/commit` slash command / skill (`{ "skill": "/commit" }`) or a shell command
    (`{ "command": "..." }`) that stages + commits the goal's work your way (still one commit, only the
-   intended files, keeping the `Co-Authored-By:` trailer).
+   intended files, keeping the `Co-Authored-By:` trailer). The agent also appends a one-entry record of
+   what it shipped to your **changelog** (see [Where the log goes](#where-the-log-goes)).
 3. **`verify` (behavioral, web-only):** a verify agent boots your dev server, exercises the feature with
    Playwright, asserts it renders with no new console errors, and commits a screenshot. (Dropped by
    config-only/CLI repos.)
@@ -360,6 +361,35 @@ A long-running `/loop` session accumulates conversation history as it drains goa
 only on reactive auto-compaction near the limit. One counter for the whole session (global across all
 repos in orchestrator mode). Claude Code only — codex's `exec` restarts fresh per invocation, so there's
 no accumulating session context to compact there.
+
+## Where the log goes
+
+Every finished goal leaves one entry describing what it shipped. That entry goes in your
+**changelog** — a top-level `"changelog"` path in the config, **default `docs/CHANGELOG.md`**
+(created if missing; newest entries appended at the end; set `false` to skip logging entirely).
+
+```jsonc
+"changelog": "docs/CHANGELOG.md"   // or "docs/HISTORY.md", or false to disable
+```
+
+It deliberately does **not** go in `CLAUDE.md`. `CLAUDE.md` is the canonical context *every* agent
+reads on *every* goal, so an append-only log inside it grows without bound: it burns context on each
+future run and eventually exceeds the file's practical size limit — one real consumer reached ~1.1M
+characters and had to hand-migrate its history out, twice. So Bunshin keeps the two separate:
+
+| File | What belongs in it | How it changes |
+| --- | --- | --- |
+| **changelog** (`docs/CHANGELOG.md`) | The running per-goal history: what shipped, decisions made, bugs verified | **Appended** to, once per goal |
+| **`CLAUDE.md`** | The *current* state: architecture, LOCKED decisions, layout, conventions | **Edited in place**, only when a durable fact actually changes |
+
+Both review gates enforce the split: the built-in `review` gate BLOCKs a diff that appends a
+progress line to `CLAUDE.md` instead of the changelog, and the opt-in `claude-md` gate BLOCKs a
+change that alters architecture/conventions/a LOCKED decision without updating `CLAUDE.md` to match.
+
+> **Upgrading an existing repo?** Nothing breaks: if you have no `changelog` key, new goals simply
+> start logging to `docs/CHANGELOG.md` instead of `CLAUDE.md`. Move your existing history there once
+> (or leave it — `CLAUDE.md` just stops growing). To keep the old behavior, set
+> `"changelog": "CLAUDE.md"`.
 
 ## Orchestrator mode — one board, many repositories
 

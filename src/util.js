@@ -279,11 +279,53 @@ function resolveOpenPr(config) {
 // is pure (no fs/spawn) so it is unit-testable; the implement gate reads the same `commit`
 // block. The resolved skill/command is RESPONSIBLE for staging + committing the goal's work on
 // the current branch, and MUST still honour the implement gate's invariants: ONE commit that
-// includes only the intended feature files + the CLAUDE.md status line, never stages a
-// `neverCommit.paths` file, and keeps the `Co-Authored-By:` trailer. Mirrors `resolveOpenPr`.
+// includes only the intended feature files + the changelog entry (see `resolveChangelog`), never
+// stages a `neverCommit.paths` file, and keeps the `Co-Authored-By:` trailer. Mirrors
+// `resolveOpenPr`.
 function resolveCommit(config) {
   const commit = config && config.commit;
   return resolveSkillOrCommand(commit, 'commit');
+}
+
+// --- Configurable changelog (where the per-goal log entry lands) --------------
+// Every finished goal appends ONE line describing what shipped. That line used to go into
+// CLAUDE.md's "Current status" section — which made CLAUDE.md grow WITHOUT BOUND: it is the
+// canonical context EVERY agent reads on EVERY goal, so an append-only log inside it burns
+// context on every run and eventually blows past the file's practical size limit (a real
+// consumer reached ~1.1M characters and had to hand-migrate the history out — twice).
+// So the log lives in its OWN file: a top-level `changelog` path (repo-relative; absent ⇒
+// `docs/CHANGELOG.md`). CLAUDE.md then changes ONLY when a DURABLE fact changes (architecture,
+// conventions, a LOCKED decision) — exactly what the opt-in `claude-md` gate polices.
+// `false` disables the log entry entirely; a repo that truly wants the old behavior can set
+// `"changelog": "CLAUDE.md"`. `resolveChangelog` is pure (no fs) so it is unit-testable; the
+// implement gate + driver read the same key. Returns `{ enabled, path }`.
+const DEFAULT_CHANGELOG_PATH = 'docs/CHANGELOG.md';
+
+function resolveChangelog(config) {
+  const raw = config && config.changelog;
+  if (raw == null) return { enabled: true, path: DEFAULT_CHANGELOG_PATH };
+  if (raw === false) return { enabled: false, path: null };
+  if (raw === true) return { enabled: true, path: DEFAULT_CHANGELOG_PATH };
+  if (typeof raw !== 'string') {
+    throw new Error(
+      `Invalid changelog in ${CONFIG_FILENAME}: expected a repo-relative file path string ` +
+        `(absent => "${DEFAULT_CHANGELOG_PATH}"), or false to disable, got ` +
+        `${Array.isArray(raw) ? 'array' : typeof raw}.`
+    );
+  }
+  // Empty / whitespace-only is neutral (like the rest of the config) ⇒ the default path.
+  const trimmed = raw.trim();
+  if (!trimmed) return { enabled: true, path: DEFAULT_CHANGELOG_PATH };
+  const normalized = trimmed.replace(/\\/g, '/').replace(/^\.\//, '');
+  // The changelog is a file INSIDE the repo: an absolute path or a `..` escape is a mistake
+  // (the implement gate writes it from a worktree — it must never reach outside).
+  if (/^([/\\]|[A-Za-z]:)/.test(trimmed) || normalized.split('/').includes('..')) {
+    throw new Error(
+      `Invalid changelog in ${CONFIG_FILENAME}: expected a path INSIDE the repo (relative, ` +
+        `no leading "/" or drive letter, no ".." segment), got ${JSON.stringify(raw)}.`
+    );
+  }
+  return { enabled: true, path: normalized };
 }
 
 // --- Configurable PR labels (PR mode) ----------------------------------------
@@ -538,6 +580,8 @@ module.exports = {
   resolveConcurrency,
   resolveContextCleanup,
   resolveCommit,
+  DEFAULT_CHANGELOG_PATH,
+  resolveChangelog,
   resolveRepositories,
   resolveRepoGates,
   resolveRepoCommands,

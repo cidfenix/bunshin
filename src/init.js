@@ -88,8 +88,11 @@ function printNextSteps(targetRoot) {
   console.log('  4. Make sure CLAUDE.md describes the project (the agents read it for context).');
   console.log('  5. Commit bunshin.config.json, then launch:  npx github:cidfenix/bunshin run');
   console.log('');
-  console.log('The driver + agent briefs are served from the bunshin package — nothing else is');
-  console.log('added to your repo. Update the pipeline with:  npm i -g github:cidfenix/bunshin');
+  console.log('The driver + agent briefs are served from the bunshin package. The only other file');
+  console.log('Bunshin writes is your changelog (docs/CHANGELOG.md by default — set "changelog" to');
+  console.log('change the path, or false to disable); each goal appends one entry describing what it');
+  console.log('shipped, so CLAUDE.md stays a short description of the CURRENT state instead of a log.');
+  console.log('Update the pipeline with:  npm i -g github:cidfenix/bunshin');
   console.log('');
 }
 

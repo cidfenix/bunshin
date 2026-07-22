@@ -52,6 +52,16 @@ cadence, run `/compact` before picking up the next goal, to keep your context bo
 batch rather than relying only on reactive auto-compaction. One counter for the WHOLE session: in
 **ORCHESTRATOR MODE** it counts goals completed across ALL repositories, not per repo.
 
+**Changelog, not CLAUDE.md.** Every finished goal leaves ONE log entry describing what shipped. It
+goes in the file named by the config's top-level **`changelog`** key — **absent ⇒ `docs/CHANGELOG.md`**
+(repo-relative; `false` ⇒ no log entry at all). The `implement` gate writes it and commits it with the
+goal's own commit; it is the ONE non-feature file a goal is expected to touch. It must **NOT** go into
+`CLAUDE.md`: that file is the canonical context every agent reads on every goal, so an append-only log
+inside it grows without bound and eventually exceeds its practical size limit. `CLAUDE.md` changes only
+when a DURABLE fact it documents changed (architecture, a convention, a LOCKED decision, the layout, a
+now-wrong stated count) — edited in place, never appended to as a running list. In **ORCHESTRATOR
+MODE** the path is resolved against the TRIAGED repo's own root, so each repo keeps its own changelog.
+
 ## The queue (Trello or Jira)
 
 `provider.kind` in the config selects the tracker — **`jira`** (default; absent ⇒ jira) or
@@ -256,8 +266,9 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
   `Co-Authored-By:` trailer). **If the config sets a top-level `commit` block** (`{ "skill": "..." }`
   slash-command/skill or `{ "command": "..." }` shell command — set EITHER, not both; blank/absent ⇒
   default), the agent commits via that skill/command instead (the team's own commit flow). Either way
-  the result must be ONE commit that stages only the intended feature files + the CLAUDE.md status
-  line, no `neverCommit.paths`, with the trailer intact (see `gates/implement.md`).
+  the result must be ONE commit that stages only the intended feature files + the changelog entry
+  (config `changelog`, absent ⇒ `docs/CHANGELOG.md` — NOT a `CLAUDE.md` status line), no
+  `neverCommit.paths`, with the trailer intact (see `gates/implement.md`).
 
 ### Built-in gate `verify` — behavioral (Playwright) — WEB-ONLY
 - **Omit this gate** for config-only/CLI/Android repos with no web UI to smoke-test (leave it out of

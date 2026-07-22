@@ -24,7 +24,7 @@ conventions (testing/commit/dependency rules), or any invariant the doc states.
   conventions, or a LOCKED decision — nothing `CLAUDE.md` describes) → `CLAUDE.md` needs no update →
   **APPROVE**.
 - **Yes, it changes architecture/conventions/a LOCKED decision** AND `CLAUDE.md` **was updated in the
-  diff** to match (including a "Current status" entry where the doc asks for one) → **APPROVE**.
+  diff** to match — the affected statement EDITED IN PLACE → **APPROVE**.
 - **Yes** AND `CLAUDE.md` **was NOT updated** (or was updated but still omits/misstates the new
   architecture/convention/decision, or leaves a now-contradicted statement in place) → **BLOCK**,
   naming exactly what is missing or inconsistent in `CLAUDE.md`.
@@ -32,9 +32,18 @@ conventions (testing/commit/dependency rules), or any invariant the doc states.
 When genuinely unsure whether a change touches the canonical context, prefer **BLOCK** and state the
 doubt: a parked goal is cheap; a stale canonical context that misleads every future agent is not.
 
+Also BLOCK the inverse failure: the diff appends a **per-goal log entry** ("shipped X…", a status /
+progress line) to `CLAUDE.md`. That entry belongs in the repo's changelog (config `changelog`, absent
+⇒ `docs/CHANGELOG.md`) — `CLAUDE.md` is the canonical context EVERY agent reads on EVERY goal, so an
+append-only log inside it grows without bound and eventually exceeds the file's practical size limit.
+`CLAUDE.md` should only ever gain/lose/alter DURABLE statements, edited in place.
+
 ## Rules
 - Judge only **`CLAUDE.md`** (at the repo root). Do not block for code-quality, test, or security
   reasons — that is the `review` gate's job; stay in your lane (docs only).
+- **`CLAUDE.md` is a description of the CURRENT state, not a log.** Prefer an in-place edit of the
+  stale sentence over any new running list. If the diff leaves a now-false statement (a stale count,
+  a superseded convention) untouched, BLOCK — staleness is the failure this gate exists to catch.
 - No "vibe check" — cite the concrete change (the new module / reversed LOCKED decision / changed
   convention / renamed key file) and the specific `CLAUDE.md` section that should reflect it.
 - A LOCKED-decision reversal ALWAYS requires updating that decision's text (the implement brief
