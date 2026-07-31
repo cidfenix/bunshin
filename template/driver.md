@@ -120,7 +120,7 @@ just-updated base and re-runs `commands.gateChecks` before its fast-forward). A 
    park closed ones). Skip this step entirely in `auto` mode.
 1. Resolve the columns. If issues are already in **In Progress** (a crashed/interrupted run), RESUME
    them — each branch `<git.branchPrefix><N>-<slug>` and worktree may already exist; re-derive
-   N/slug from it (step 2) and continue from the gates (step 5). Then, while FEWER than `concurrency`
+   N/slug from it (step 2), ensure the worktree via step 4 (its resume ladder — this counts as "a RESUME"), then continue from the gates (step 5). Then, while FEWER than `concurrency`
    goals are in flight (default 1 — see **Concurrency** above), read the **Pending** status
    (a JQL search with `ORDER BY Rank ASC`, matching the Jira board/backlog order — see the Provider adapter table above for the fallback when `Rank` isn't sortable) and take issues from the TOP until `concurrency` goals are
    in flight (at the default of 1: take the FIRST issue). Steps 2–6 below apply to EACH in-flight
