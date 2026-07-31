@@ -346,14 +346,20 @@ drop `verify`, or splice in custom steps via `gates.steps`
      label must already exist on the repo). This is a *filter* stamp — distinct from
      `merge.autoMerge.label`, which is a merge *gate* the reaper requires before auto-merging.
 
-   Any gate failure → **Blocked** with the reason (branch kept).
+   Any gate failure is classified, not always parked — see
+   [Auto-unblock](#auto-unblock--self-resolving-gate-failures) below: self-resolvable failures
+   auto-retry to **Pending** (branch and worktree kept); human-needed or budget-exhausted failures
+   go to **Blocked** with the reason (branch kept).
 
 The card's list is the authoritative status, so a run is **crash-resumable**. Implementation is
 **serial by default** — set a top-level `"concurrency"` in the config (a whole number, default `1`)
 to let the driver work that many goals at once, each in its own worktree; integration (rebase +
-re-gate + merge) stays serial regardless. A goal parks on the **first** gate failure — no
-auto-repair; you re-queue by dragging the card back to **Pending**. (In `pr` mode, multiple PRs can
-sit in **In Review** at once.)
+re-gate + merge) stays serial regardless. A goal's first gate failure is classified, not always
+parked (see [Auto-unblock](#auto-unblock--self-resolving-gate-failures) below): self-resolvable
+failures auto-retry back to **Pending** with branch and worktree kept; human-needed or
+budget-exhausted failures still park to **Blocked**. Manual re-queue by dragging a card back to
+**Pending** still works and never consumes retry budget. (In `pr` mode, multiple PRs can sit in
+**In Review** at once.)
 
 A long-running `/loop` session accumulates conversation history as it drains goal after goal.
 `"contextCleanupEvery"` (a whole number, default `5`, `0` to disable) has the driver run Claude Code's
