@@ -174,3 +174,12 @@ is the running log. Newest entries at the end. Grep it for a ticket id or topic;
   `npm test`); `autoPush`/`autoPushNote` added to both config templates (orchestrator-global only — not
   a per-repo `gates`/`commands`-style override); README's auto-mode bullet updated. Design:
   `docs/superpowers/specs/2026-07-19-merge-auto-push-design.md`.
+- **auto-unblock**: the driver now classifies every gate failure at park time instead of always
+  parking. Self-resolvable failures (in-repo fix + re-run gates) round-trip to Pending with a scoped
+  `Auto-retry <n>/<max>` comment, keeping branch AND worktree (no re-install on retry); human-needed
+  failures still park to Blocked, which now means "needs a human". New top-level `unblock` config
+  (`{auto, maxRetries}`, default ON with 5 retries; per-repo override in orchestrator mode);
+  `resolveUnblock` in `src/util.js` pins the semantics (`test/unblock.test.js`). Driver step 4 gained
+  explicit resume semantics (reuse kept worktree → add worktree on existing branch → fresh), which
+  also fixes manual unblocks; the implement brief gained a "Retry attempts" scoping note. Spec:
+  `docs/superpowers/specs/2026-07-31-auto-unblock-design.md`.

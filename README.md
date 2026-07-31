@@ -362,6 +362,23 @@ only on reactive auto-compaction near the limit. One counter for the whole sessi
 repos in orchestrator mode). Claude Code only — codex's `exec` restarts fresh per invocation, so there's
 no accumulating session context to compact there.
 
+### Auto-unblock — self-resolving gate failures
+
+A failed gate does not always need you. By default the driver **classifies** every failure: if the
+fix is achievable by editing the repo and re-running the gates (a review `BLOCK` with concrete
+findings, failing `gateChecks`, a Playwright infra flake), the goal goes straight back to
+**Pending** with a scoped `Auto-retry <n>/<max>` comment — branch and worktree kept, so the retry
+skips the fresh-worktree install — and the loop re-takes it. Only failures that genuinely need a
+human (external dashboards/credentials, product or scope decisions, triage ambiguity, a PR closed
+unmerged) park to **Blocked** — so the Blocked column now *means* "needs a human". When in doubt,
+the driver parks.
+
+Tune it with a top-level `"unblock"` block in the config: `{ "auto": true, "maxRetries": 5 }` (the
+defaults — auto-unblock is ON). `"auto": false` restores park-everything; `maxRetries` caps
+auto-retries per goal (`0` = classify but never retry), counted from the issue's own `Auto-retry`
+comments — comments written by humans never consume budget. In orchestrator mode each
+`repositories[]` entry may override `unblock` per repo, like `gates`/`commands`.
+
 ## Where the log goes
 
 Every finished goal leaves one entry describing what it shipped. That entry goes in your
