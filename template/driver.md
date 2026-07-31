@@ -97,6 +97,7 @@ key→`idShort`, JQL search→`get_cards_by_list_id`):
 | A goal's title | issue summary | card name |
 | Move a goal to a column | **transition** the issue to that status | `move_card` to the list |
 | Comment on a goal | add a comment to the issue | `add_comment` |
+| Read a goal's comments | read the issue's comments (newest last) | `get_card` (comments/actions) |
 
 Jira note: moving a goal is a **workflow transition**, so the target status must be a legal transition
 from the current one — if it's rejected, report rather than forcing. (Trello `move_card` has no such
@@ -153,7 +154,10 @@ just-updated base and re-runs `commands.gateChecks` before its fast-forward). A 
      `merged: <merge-sha>`.
    - `pr`: push the branch + open a Pull Request, then transition the issue **→ In Review** and
      comment `PR: <url>`. The reaper merges it later once the gate is met.
-   If ANY gate failed → PARK: transition the issue **→ Blocked** and comment
+   If ANY gate failed → run **AUTO-UNBLOCK (classify at park time)** (see the section below). A
+   self-resolvable failure with retry budget left goes BACK TO PENDING with an `Auto-retry` comment —
+   **keeping the worktree AND the branch**. Everything else (human-needed, budget exhausted, or
+   `unblock.auto: false`) → PARK: transition the issue **→ Blocked** and comment
    `Blocked: <reason> (branch: <git.branchPrefix><N>-<slug>)`; remove the worktree
    (`git worktree remove --force <git.worktreeBaseDir>/<N>-<slug>`) but KEEP the branch.
    - WINDOWS: `git worktree remove` may fail with "Filename too long" because of the deep
@@ -325,6 +329,60 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
 - Invoke the named agent skill / slash command (e.g. a `/security-review`) against the branch diff.
 - Treat its verdict like `review`: a BLOCK / failure → PARK; otherwise continue.
 
+## AUTO-UNBLOCK (classify at park time)
+
+Most gate failures do not need a human: an adversarial-review BLOCK arrives with concrete findings
+that ARE the fix list for a retry. Instead of parking every failure, classify it first — controlled
+by the config's OPTIONAL top-level `unblock` block: `{"auto": true|false, "maxRetries": <n>}`.
+Absent block/keys ⇒ `auto: true`, `maxRetries: 5` (auto-unblock is ON by default). `auto: false` ⇒
+skip this section entirely — every failure PARKS to Blocked exactly as the park steps describe. A
+non-boolean `auto`, or a non-integer / negative `maxRetries`, is a config error — report it rather
+than guessing. (`maxRetries: 0` = classify but never retry: self-resolvable failures still park,
+with the classification stated in the park comment.) **ORCHESTRATOR MODE:** the top-level `unblock`
+is the default; a `repositories[]` entry MAY carry its own `unblock` block that overrides it for
+that repo only (same pattern as per-repo `gates`/`commands`).
+
+Every PARK site routes through this classification: a gate failure (step 6), a merge re-gate
+failure (INTEGRATION), an open-PR failure, triage's no-match/ambiguity, and the reaper's
+"PR closed unmerged".
+
+**The rubric:**
+
+- **Self-resolvable** — the fix is achievable by editing THIS repository and re-running the gates.
+  Typical: a `review` BLOCK citing code/copy defects (with or without prescribed fixes), failing
+  `commands.gateChecks`, a `verify` functional failure, a Playwright infra flake (name it in the
+  retry comment), a merge re-gate failure.
+- **Human-needed** — resolving it requires anything outside the repository's and your reach:
+  external dashboards / credentials / DNS / third-party services, a product or scope decision,
+  spending or publishing approval, a triage no-match or ambiguous tie (never guess), a PR a human
+  closed unmerged.
+- **When in doubt → human-needed.** A wasted human look is cheaper than `maxRetries` wasted gate
+  cycles; state the doubt in the park comment.
+
+**Human-needed, or retry budget exhausted** → PARK to Blocked exactly as the park steps describe
+(worktree removed, branch kept). When the budget is what stopped you, prefix the park reason:
+`retry budget exhausted (<maxRetries> auto-retries) — <verdict>`.
+
+**Self-resolvable with budget left** → retry:
+
+1. **Attempt number** = 1 + the count of the issue's existing comments that START with the literal
+   marker `Auto-retry` (read the issue's comments — see the provider adapter table). Deterministic
+   and crash-safe across sessions. Comments written by humans — including manual unblock comments —
+   NEVER count against the budget.
+2. Attempt number > `maxRetries` ⇒ the budget is exhausted — PARK as above.
+3. Comment on the issue: `Auto-retry <n>/<maxRetries>: Gate <position> (<name>) — ` followed by the
+   FULL gate verdict, then the scoped retry instructions: the findings above are the COMPLETE fix
+   list; resume on branch `<git.branchPrefix><N>-<slug>` from `<head sha>`; do NOT redo anything
+   the verdict verified sound.
+4. Transition the issue **In Progress → Pending** and **KEEP the worktree AND the branch** — no
+   teardown, so the retry skips the fresh-worktree install (step 4 reuses it). The goal leaves the
+   in-flight set (its `concurrency` slot frees); the normal loop re-takes it from Pending in board
+   order, so other pending goals may interleave.
+
+Heartbeat note: an auto-retry is NOT a park — never write `phase: "blocked"` for it; the goal simply
+re-enters the normal phases when re-taken. `phase: "blocked"` / `blockedReason` stay reserved for
+real (human-needed or budget-exhausted) parks.
+
 ## INTEGRATION
 Behaviour depends on `merge.mode` (default `auto`). **Sandboxed?** (see **Sandbox awareness** above)
 auto mode: merge into *this clone's* base as below and do NOT push — the host CLI fast-forwards from the
@@ -401,8 +459,10 @@ syncs status (humans merge on GitHub; the reaper moves the issue to Done once it
   no matter what: one merge at a time, each rebased onto the just-updated base with
   `commands.gateChecks` re-run. (In PR mode multiple PRs may sit open in **In Review** at once;
   that's fine — the reaper merges open PRs at the start of each iteration.)
-- PARK on the FIRST gate failure. No repair, no retry. Playwright infra flakes are parked too; name
-  them in the reason so they're easy to re-queue (move the issue back to Pending).
+- Gates run fail-fast: the FIRST failure stops the pipeline. The goal is then AUTO-RETRIED (if
+  classified self-resolvable with retry budget left — see AUTO-UNBLOCK) or PARKED. Gates themselves
+  never silently repair; a retry is a FRESH pipeline run with the previous verdict as its scope.
+  Playwright infra flakes are self-resolvable — name them in the retry comment.
 - NEVER merge anything that didn't pass ALL its configured gates before the rebase AND the `implement`
   gate's deterministic checks (`commands.gateChecks`) again after the rebase.
 - Transition the issue at every status change so the tracker reflects live progress and the run is
