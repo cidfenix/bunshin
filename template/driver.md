@@ -134,9 +134,18 @@ just-updated base and re-runs `commands.gateChecks` before its fast-forward). A 
      (with the default `branchPrefix` of `goal/` this is `goal/<N>-<slug>`).
    - Record whether the issue summary carries a trailing `verify.agentTag` token.
 3. Transition the issue **Pending → In Progress**. No git commit — the issue's status is the state.
-4. Create an isolated worktree on a fresh branch off `<git.baseBranch>`, under `<git.worktreeBaseDir>`:
-   `git worktree add <git.worktreeBaseDir>/<N>-<slug> -b <git.branchPrefix><N>-<slug> <git.baseBranch>`
-   All implementation/test work happens in that worktree directory.
+4. Ensure the goal's isolated worktree exists — RESUME before you create (an auto-retried or
+   manually-unblocked goal arrives from Pending with prior work on its branch):
+   - If `<git.worktreeBaseDir>/<N>-<slug>` already exists and is checked out on branch
+     `<git.branchPrefix><N>-<slug>` (a worktree KEPT by an auto-retry) → REUSE it as-is; skip
+     `git worktree add`.
+   - Else if branch `<git.branchPrefix><N>-<slug>` already exists (the post-park state — e.g. a
+     manual unblock) → `git worktree add <git.worktreeBaseDir>/<N>-<slug> <git.branchPrefix><N>-<slug>`
+     (NO `-b`), continuing from the branch head.
+   - Else → create fresh:
+     `git worktree add <git.worktreeBaseDir>/<N>-<slug> -b <git.branchPrefix><N>-<slug> <git.baseBranch>`
+   All implementation/test work happens in that worktree directory. Either resume case is "a RESUME"
+   wherever this driver says so.
    - **ORCHESTRATOR MODE:** the `triage` gate (step 5, run FIRST) has already chosen the target
      repository. Cut the worktree inside THAT repo (its `path`, cloning `remote` there if the checkout
      is missing), off that repo's base branch (its `baseBranch`, else `git.baseBranch`). So run triage
@@ -249,8 +258,12 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
 ### Built-in gate `implement` — implement + deterministic checks
 - Dispatch the implement agent with the `Agent` tool (`subagent_type: general-purpose`), passing the
   brief `gates/implement.md`, the goal text (the issue summary), the branch
-  name, and the worktree path.
+  name, and the worktree path. **On a RESUME** (step 4 found the branch/worktree already existing),
+  ALSO pass the content of the issue's LATEST `Auto-retry` / `Blocked:` / unblock comment as the
+  attempt's scope — the implement brief's "Retry attempts" section tells the agent how to use it.
 - After it returns, run in the worktree: the config's `commands.install`, then `commands.gateChecks`.
+  On a REUSED worktree whose dependency dir (e.g. `node_modules`) is already present, you MAY skip
+  `commands.install`; `commands.gateChecks` always runs in full.
 - CRITICAL — keep `commands.install` exactly as configured (see `commands.installNote`). For pnpm it
   uses `--ignore-scripts`: a fresh worktree has no recorded build-script approval, so a plain
   `pnpm install` errors `ERR_PNPM_IGNORED_BUILDS: esbuild` (exit 1), and that failure then fires on
