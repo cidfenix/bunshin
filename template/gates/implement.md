@@ -20,6 +20,13 @@ consistent with the code) and note the reversal explicitly in your commit messag
 changelog entry you write in step 6. This is expected and authorized — Bunshin is permitted to
 change locked decisions when a goal calls for it.
 
+## Retry attempts
+If the driver passed you a prior-attempt verdict (the content of an `Auto-retry` / `Blocked:` /
+unblock comment), this branch already carries a previous attempt's work — do NOT start over. The
+verdict's findings are your COMPLETE scope: fix exactly those, re-running only the checks they
+touch. Do NOT redo, re-audit, or restructure work the verdict verified sound, and do NOT
+re-litigate accepted findings. Your commit for the attempt follows the same rules as step 5 below.
+
 ## How to work (TDD)
 1. Understand the goal; if it is ambiguous, make the smallest reasonable interpretation and proceed
    (the human iterates with a new goal if it's wrong — do NOT block on clarification, there is no
