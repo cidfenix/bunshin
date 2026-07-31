@@ -192,8 +192,10 @@ fail-fast. The built-in gates: **`implement`** (agent codes it TDD-style; run `i
 → **`verify`** (verify agent boots the dev server, Playwright-smokes the feature, commits a screenshot
 to `artifactsDir` — web-only, omit for config-only/CLI repos) → **`review`** (fresh adversarial review
 agent → APPROVE/BLOCK). A repo can reorder these, drop `verify`, or add custom `command`/`skill` gates.
-Then **merge** (rebase, re-run `gateChecks`, fast-forward, card → Done). Any failure → card → Blocked
-with a reason; branch kept. The implement gate also appends the goal's one-entry log to the repo's
+Then **merge** (rebase, re-run `gateChecks`, fast-forward, card → Done). Any failure is CLASSIFIED
+(AUTO-UNBLOCK, default on): self-resolvable → auto-retry, card back to Pending with an `Auto-retry`
+comment, branch and worktree kept; human-needed or budget-exhausted → card → Blocked with a reason,
+branch kept. The implement gate also appends the goal's one-entry log to the repo's
 **changelog** (`changelog`, absent ⇒ `docs/CHANGELOG.md`) — never to `CLAUDE.md` (LOCKED decision 6).
 Full detail lives in `template/driver.md` — read it before changing pipeline behaviour.
 

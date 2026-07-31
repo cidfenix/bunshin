@@ -277,7 +277,8 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
   `git -C <git.worktreeBaseDir>/<N>-<slug> checkout -- <neverCommit.paths…>`. The implement agent
   must never COMMIT install churn (see its brief); if it landed in the goal commit, that is a
   `review` gate BLOCK.
-- Any non-zero exit (or the agent reporting it could not implement cleanly) → PARK.
+- Any non-zero exit (or the agent reporting it could not implement cleanly) → the gate fails —
+  step 6 routes it through AUTO-UNBLOCK — with the failure as the reason.
 - COMMIT step: the implement agent commits the goal's work on the branch. By default it makes ONE
   Conventional-Commit `git commit` (explicit paths only; never a `neverCommit.paths` file; keeps the
   `Co-Authored-By:` trailer). **If the config sets a top-level `commit` block** (`{ "skill": "..." }`
@@ -302,14 +303,15 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
   different port if the default is busy; read the printed URL.
 - The verify agent commits the screenshot on the goal branch before reporting back (so the artifact
   reaches `<git.baseBranch>` via the subsequent fast-forward merge).
-- Verify agent reports FAIL → PARK (include "infra flake" verbatim in the reason if it reported the dev
+- Verify agent reports FAIL → the gate fails — step 6 routes it through AUTO-UNBLOCK — with the
+  failure as the reason (include "infra flake" verbatim in the reason if it reported the dev
   server failed to boot).
 
 ### Built-in gate `review` — adversarial review
 - Dispatch a FRESH review agent (`Agent` tool) with the brief
   `gates/review.md` and ONLY the branch diff — no implementer context.
 - It returns `APPROVE` or `BLOCK: <reasons>`.
-- `BLOCK` → PARK with the objection as the reason.
+- `BLOCK` → the gate fails — step 6 routes it through AUTO-UNBLOCK — with the objection as the reason.
 
 ### Built-in gate `readme` — adversarial docs check — OPT-IN
 - **Opt-in only:** this gate runs only when a repo names `readme` in its `gates.steps`; it is NOT in
@@ -320,7 +322,7 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
   config keys, public API, setup/requirements, documented behavior), `README.md` must have been updated
   to match; a purely internal change needs no README update.
 - It returns `APPROVE` or `BLOCK: <what's missing from README.md>`.
-- `BLOCK` → PARK with the objection as the reason.
+- `BLOCK` → the gate fails — step 6 routes it through AUTO-UNBLOCK — with the objection as the reason.
 
 ### Built-in gate `claude-md` — adversarial CLAUDE.md check — OPT-IN
 - **Opt-in only:** this gate runs only when a repo names `claude-md` in its `gates.steps`; it is NOT in
@@ -331,16 +333,18 @@ step is a human label (used in reasons/heartbeats). An unknown built-in name, or
   a LOCKED decision, `CLAUDE.md` must have been updated to match; a change that touches nothing
   `CLAUDE.md` documents needs no update.
 - It returns `APPROVE` or `BLOCK: <what's missing/inconsistent in CLAUDE.md>`.
-- `BLOCK` → PARK with the objection as the reason.
+- `BLOCK` → the gate fails — step 6 routes it through AUTO-UNBLOCK — with the objection as the reason.
 
 ### Custom step `{"command": "<shell>"}` — run a shell gate in the worktree
 - Run the given shell command in the worktree directory (`<git.worktreeBaseDir>/<N>-<slug>`).
-- **Non-zero exit → PARK.** Use this for lint/typecheck/security-scan/`./gradlew assembleDebug`-style
-  gates that don't need the web `verify` path.
+- **Non-zero exit → the gate fails — step 6 routes it through AUTO-UNBLOCK — with the failure as
+  the reason.** Use this for lint/typecheck/security-scan/`./gradlew assembleDebug`-style gates
+  that don't need the web `verify` path.
 
 ### Custom step `{"skill": "<name>"}` — run an agent skill / slash command as a gate
 - Invoke the named agent skill / slash command (e.g. a `/security-review`) against the branch diff.
-- Treat its verdict like `review`: a BLOCK / failure → PARK; otherwise continue.
+- Treat its verdict like `review`: a BLOCK / failure → the gate fails — step 6 routes it through
+  AUTO-UNBLOCK — with the objection as the reason; otherwise continue.
 
 ## AUTO-UNBLOCK (classify at park time)
 
@@ -480,4 +484,5 @@ syncs status (humans merge on GitHub; the reaper moves the issue to Done once it
 - Transition the issue at every status change so the tracker reflects live progress and the run is
   crash-resumable (the issue's status is the source of truth — there is no queue file).
 - You are autonomous: do not ask the human anything mid-run. Ambiguous goals get the implement
-  agent's best reasonable interpretation; if that fails a gate, it parks and the human iterates.
+  agent's best reasonable interpretation; if that fails a gate, AUTO-UNBLOCK retries or parks it
+  and the human iterates.

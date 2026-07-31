@@ -111,7 +111,9 @@ Omit the block (or leave `steps` empty) and you get the built-in default —
 
 Custom steps splice in your own checks: `{"command": "<shell>", "name": "…"}` (a **non-zero exit**
 Blocks the goal) or `{"skill": "<name>", "name": "…"}` (run an agent skill). Steps run in array order,
-**fail-fast** — the first failure parks the goal in **Blocked**.
+**fail-fast** — the first failure stops the pipeline and is classified (see
+[Auto-unblock](#auto-unblock--self-resolving-gate-failures)): self-resolvable → auto-retry to
+**Pending**; human-needed/budget-exhausted → **Blocked**.
 
 The payoff: **non-web repos can drop the `verify` gate**, reorder the rest, or mix in their own checks.
 Bunshin's own config (a zero-dep CLI with no dev server) drops `verify`:
