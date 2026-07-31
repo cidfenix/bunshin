@@ -53,4 +53,16 @@ test('errors name the config file', () => {
   assert.throws(() => resolveUnblock({ unblock: { maxRetries: -1 } }), /bunshin\.config\.json/);
 });
 
+const fs = require('fs');
+const path = require('path');
+
+test('both config templates carry an unblock block that resolves to the defaults', () => {
+  for (const rel of ['template/bunshin.config.template.json', 'template/bunshin.orchestrator.template.json']) {
+    const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', rel), 'utf8'));
+    assert.ok(cfg.unblock, `${rel} is missing the unblock block`);
+    assert.ok(typeof cfg.unblock.$comment === 'string' && cfg.unblock.$comment.length > 0, `${rel} unblock block needs a $comment`);
+    assert.deepStrictEqual(resolveUnblock(cfg), { auto: true, maxRetries: 5 });
+  }
+});
+
 console.log(`\nunblock.test.js: ${passed} passed`);
