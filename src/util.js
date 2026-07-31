@@ -404,6 +404,41 @@ function resolveConcurrency(config) {
   return raw;
 }
 
+// --- Auto-unblock (self-resolving gate failures) ---------------------------------
+// When a gate fails, the driver classifies the failure: self-resolvable (fixable by editing the
+// repo and re-running the gates) goals are sent back to Pending with a scoped `Auto-retry`
+// comment — worktree and branch kept — while human-needed failures park to Blocked as before.
+// The top-level `unblock` block tunes it: absent ⇒ { auto: true, maxRetries: 5 } (ON by
+// default); `auto: false` restores park-everything; `maxRetries: 0` = classify but never retry.
+// `resolveUnblock` is pure (no fs/spawn) so it is unit-testable; the driver reads the same
+// `unblock` key and mirrors these semantics. Invalid values throw a clear key-referencing error
+// rather than silently degrading.
+function resolveUnblock(config) {
+  const raw = config && config.unblock;
+  if (raw == null) return { auto: true, maxRetries: 5 };
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(
+      `Invalid unblock in ${CONFIG_FILENAME}: expected an object like {"auto": true, "maxRetries": 5}, got ` +
+        `${JSON.stringify(raw)}.`
+    );
+  }
+  const auto = raw.auto == null ? true : raw.auto;
+  if (typeof auto !== 'boolean') {
+    throw new Error(
+      `Invalid unblock.auto in ${CONFIG_FILENAME}: expected a boolean (absent => true), got ` +
+        `${JSON.stringify(raw.auto)}.`
+    );
+  }
+  const maxRetries = raw.maxRetries == null ? 5 : raw.maxRetries;
+  if (typeof maxRetries !== 'number' || !Number.isInteger(maxRetries) || maxRetries < 0) {
+    throw new Error(
+      `Invalid unblock.maxRetries in ${CONFIG_FILENAME}: expected a whole number >= 0 (absent => 5), got ` +
+        `${JSON.stringify(raw.maxRetries)}.`
+    );
+  }
+  return { auto, maxRetries };
+}
+
 // --- Configurable context cleanup (driver /compact cadence) --------------------
 // A long `/loop` driver session accumulates conversation history as it drains goals. A
 // top-level `contextCleanupEvery` bounds how many COMPLETED goals pass between proactive
@@ -578,6 +613,7 @@ module.exports = {
   resolvePrLabels,
   resolveAutoPush,
   resolveConcurrency,
+  resolveUnblock,
   resolveContextCleanup,
   resolveCommit,
   DEFAULT_CHANGELOG_PATH,
