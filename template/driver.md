@@ -107,8 +107,8 @@ constraint.)
 goals may be **in flight** (worktree cut, gates running) at the same time. At `1` (the default)
 everything below reads exactly as written — strictly serial. Above `1`, take additional Pending goals
 (step 1) until `concurrency` goals are in flight and work them side by side: each goal keeps its OWN
-worktree/branch, its gates still run in order fail-fast, and a gate failure PARKS only that goal —
-the others continue. Gate agents for DIFFERENT goals may be dispatched in parallel. **INTEGRATION is
+worktree/branch, its gates still run in order fail-fast, and a gate failure stops only that goal (AUTO-UNBLOCK
+retries or parks it) — the others continue. Gate agents for DIFFERENT goals may be dispatched in parallel. **INTEGRATION is
 always serial** regardless of `concurrency`: merge one goal at a time (each rebases onto the
 just-updated base and re-runs `commands.gateChecks` before its fast-forward). A non-integer or < 1
 `concurrency` is a config error — report it rather than guessing.
@@ -212,9 +212,9 @@ you have just read the columns):
 The gates are a **per-repo ordered preset** in `gates.steps`. **Resolve the list first:** if
 `gates.steps` is absent or an empty array, use the built-in default `["implement", "verify", "review"]`
 (so existing repos are unchanged). Otherwise use exactly the steps listed, in order. Run them
-**fail-fast**: on the FIRST failure, PARK the goal (do not run the remaining gates). Number the gates by
-their **1-based position** for heartbeats (1st→`gate1`, 2nd→`gate2`, 3rd+→`gate3`) and for the PARK
-reason (`Gate <position> (<name>): <short error>`).
+**fail-fast**: on the FIRST failure, stop (do not run the remaining gates) and route the failure through
+**AUTO-UNBLOCK** — retry or PARK. Number the gates by their **1-based position** for heartbeats
+(1st→`gate1`, 2nd→`gate2`, 3rd+→`gate3`) and for the reason (`Gate <position> (<name>): <short error>`).
 
 Each step in `gates.steps` is EITHER a **built-in gate** (a string name, or `{"gate": "<name>"}`), OR a
 **custom step** (`{"command": "<shell>"}` or `{"skill": "<name>"}`). An optional `name` on an object
@@ -393,7 +393,7 @@ at it).
 1. Rebase the branch onto the latest base branch:
    `git -C <git.worktreeBaseDir>/<N>-<slug> rebase <git.baseBranch>`.
 2. Re-run the `implement` gate's deterministic checks in the worktree (`commands.gateChecks`). Fail →
-   PARK with reason `Merge re-gate failed — <short error>`.
+   route through **AUTO-UNBLOCK** (a merge re-gate failure is typically self-resolvable): retry or PARK with reason `Merge re-gate failed — <short error>`.
 3. Fast-forward merge: `git checkout <git.baseBranch> && git merge --ff-only <git.branchPrefix><N>-<slug>`.
    **Not sandboxed** (see **Sandbox awareness** above — sandboxed runs never push here; the host CLI
    does it after sync-back) and `merge.autoPush` is not explicitly `false` (absent ⇒ true): push the
@@ -411,8 +411,7 @@ Needs a git remote (`merge.remote`, default `origin`) and GitHub access — an a
 **or** a GitHub MCP server. Use whichever is available.
 1. Rebase onto the latest base: `git fetch <merge.remote>` then
    `git -C <worktree> rebase <merge.remote>/<git.baseBranch>` (fall back to local `<git.baseBranch>`
-   if there's no remote-tracking base). Re-run `commands.gateChecks`. Fail → PARK
-   `Merge re-gate failed — <short error>`.
+   if there's no remote-tracking base). Re-run `commands.gateChecks`. Fail → route through **AUTO-UNBLOCK** (a merge re-gate failure is typically self-resolvable): retry or PARK `Merge re-gate failed — <short error>`.
 2. Push the branch: `git -C <worktree> push -u <merge.remote> <git.branchPrefix><N>-<slug>`.
 3. Open a PR from the branch into `<git.baseBranch>`:
    - **If `merge.openPr` is set** (a `{ "skill": "..." }` slash-command/skill or `{ "command": "..." }`
@@ -420,8 +419,8 @@ Needs a git remote (`merge.remote`, default `origin`) and GitHub access — an a
      skill/command instead. It applies the user's own PR flow/template and is given the branch, the base
      branch (`<git.baseBranch>`), and the goal context. It is RESPONSIBLE for creating the PR AND for
      printing/returning the PR URL — capture that URL for step 4, AND for applying any `merge.prLabels`
-     to the PR itself (pass the label list along). If it fails (non-zero exit / no URL) →
-     PARK `Open-PR step failed — <short error>`.
+     to the PR itself (pass the label list along). If it fails (non-zero exit / no URL) → route through
+     **AUTO-UNBLOCK**: retry or PARK `Open-PR step failed — <short error>`.
    - **Otherwise (default):** `gh pr create --base <git.baseBranch> --head <branch> --fill` (or the
      GitHub MCP). Title + body from the goal text and the implement agent's summary.
    - **PR labels (`merge.prLabels`, applies to BOTH paths):** if `merge.prLabels` is a non-empty array,
