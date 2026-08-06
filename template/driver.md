@@ -398,8 +398,8 @@ is the default; a `repositories[]` entry MAY carry its own `unblock` block that 
 that repo only (same pattern as per-repo `gates`/`commands`).
 
 Every PARK site routes through this classification: a gate failure (step 6), a merge re-gate
-failure (INTEGRATION), an open-PR failure, triage's no-match/ambiguity, and the reaper's
-"PR closed unmerged".
+failure (INTEGRATION), a PR-mode branch push failure or an open-PR failure, triage's
+no-match/ambiguity, and the reaper's "PR closed unmerged".
 
 **The rubric:**
 
@@ -460,10 +460,11 @@ at it).
 4. Clean up: `git worktree remove <git.worktreeBaseDir>/<N>-<slug>` and
    `git branch -d <git.branchPrefix><N>-<slug>`. (On Windows, if `git worktree remove` fails with
    "Filename too long", delete the dir with a long-path-safe method then `git worktree prune` — see
-   the PARK note.) If you pushed this branch (`git.pushBranches`), delete it on the remote too:
-   `git push <merge.remote> --delete <git.branchPrefix><N>-<slug>` — **best-effort**, and only for a
-   MERGED goal (the checkpoint has served its purpose; the work is on `<git.baseBranch>`). Parked
-   branches are NEVER deleted, locally or remotely — that is the point of keeping them.
+   the PARK note.) Unless `git.pushBranches` is `false` — or you are sandboxed in `auto` mode —
+   delete the branch on the remote too: `git push <merge.remote> --delete
+   <git.branchPrefix><N>-<slug>` — **best-effort**, and only for a MERGED goal (the checkpoint has
+   served its purpose; the work is on `<git.baseBranch>`). Parked branches are NEVER deleted, locally
+   or remotely — that is the point of keeping them.
 5. Record the resulting merge sha, transition the issue **→ Done**, comment `merged: <sha>`.
 
 ### mode `pr` — open a Pull Request (human review gate)
@@ -479,7 +480,7 @@ Needs a git remote (`merge.remote`, default `origin`) and GitHub access — an a
    sole writer of `<git.branchPrefix>*` branches, and `--force-with-lease` still refuses if someone
    else moved the ref. (Harmless when nothing was pushed before.) Unlike the checkpoint pushes, THIS
    push is not best-effort — PR mode cannot open a PR without it, so a failure routes through
-   **AUTO-UNBLOCK** like the open-PR step below.
+   **AUTO-UNBLOCK**: retry or PARK `Branch push failed — <short error>`.
 3. Open a PR from the branch into `<git.baseBranch>`:
    - **If `merge.openPr` is set** (a `{ "skill": "..." }` slash-command/skill or `{ "command": "..." }`
      shell command — set EITHER, not both; blank/absent ⇒ default), open the PR by invoking that
