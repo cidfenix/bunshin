@@ -81,7 +81,9 @@
     "$comment": "Branch + worktree conventions applied inside EACH target repository (the one triage picks). The driver cuts the worktree off that repo's baseBranch (a repository entry can override `baseBranch`). `worktreeBaseDir` is where per-goal worktrees are created for the chosen repo (relative to that repo, or absolute).",
     "baseBranch": "{{BASE_BRANCH}}",
     "branchPrefix": "goal/",
-    "worktreeBaseDir": "{{WORKTREE_BASE_DIR}}"
+    "worktreeBaseDir": "{{WORKTREE_BASE_DIR}}",
+    "pushBranches": true,
+    "pushBranchesNote": "OPTIONAL. Push each GOAL branch to the triaged repository's merge.remote as it progresses — after every gate that may have committed, at PARK (Blocked) and at auto-retry — so the work survives the machine that produced it: another agent, or you on another computer, can resume a parked goal (the driver fetches <remote>/<branch> when no local branch exists). Absent ⇒ true. Best-effort: no remote configured, or a failed push, is logged and the goal continues — never a gate failure, never a park. On a successful auto-mode merge the remote goal branch is DELETED along with the local one. This is orchestrator-GLOBAL (no per-repository override). Set false to keep goal branches strictly local. NOTE: this is the GOAL branch; merge.autoPush is the separate knob for pushing the BASE branch after a merge."
   },
 
   "merge": {

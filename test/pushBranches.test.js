@@ -49,4 +49,27 @@ test('it is independent of merge.autoPush (base-branch push, a different knob)',
   assert.strictEqual(resolvePushBranches({ git: { pushBranches: true }, merge: { autoPush: false } }), true);
 });
 
+// --- Shipped-artifact guards --------------------------------------------------
+// The resolver and the artifacts consumers actually receive must not drift apart.
+const fs = require('fs');
+const path = require('path');
+const repoRoot = path.join(__dirname, '..');
+const read = (rel) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+const readJson = (rel) => JSON.parse(read(rel));
+
+test('both config templates ship git.pushBranches: true with a note', () => {
+  for (const rel of [
+    'template/bunshin.config.template.json',
+    'template/bunshin.orchestrator.template.json',
+  ]) {
+    const cfg = readJson(rel);
+    assert.strictEqual(cfg.git.pushBranches, true, `${rel} must ship git.pushBranches: true`);
+    assert.ok(
+      typeof cfg.git.pushBranchesNote === 'string' && cfg.git.pushBranchesNote.length > 40,
+      `${rel} must explain git.pushBranches in a pushBranchesNote`
+    );
+    assert.strictEqual(resolvePushBranches(cfg), true, `${rel}'s shipped value must resolve`);
+  }
+});
+
 console.log(`\npushBranches.test.js: ${passed} passed`);
