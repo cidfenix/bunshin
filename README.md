@@ -335,7 +335,8 @@ drop `verify`, or splice in custom steps via `gates.steps`
      → **Done**. No remote or GitHub needed. If a remote *is* configured, `merge.autoPush` (default
      `true`) pushes the base branch right after each merge so it doesn't silently drift ahead of the
      remote — best-effort (no remote, or a failed push, is logged and never blocks the goal); set it
-     to `false` to keep the fully local behavior.
+     to `false` to keep the fully local behavior. The merged goal branch is then deleted locally, and
+     on the remote if it was checkpointed there (see below).
    - **`pr`**: push the branch, open a GitHub **Pull Request**, card → **In Review**. A review reaper
      then auto-merges it once your gate is met — **≥ N approvals and/or a label** (optionally green
      checks) — or, with the gate off, simply marks the card **Done** after a human merges. Needs a
@@ -369,6 +370,25 @@ A long-running `/loop` session accumulates conversation history as it drains goa
 only on reactive auto-compaction near the limit. One counter for the whole session (global across all
 repos in orchestrator mode). Claude Code only — codex's `exec` restarts fresh per invocation, so there's
 no accumulating session context to compact there.
+
+### Branch checkpoints — resuming from another machine
+
+A goal's work sits on `goal/<N>-<slug>` in a local worktree until it merges, so an agent that stops
+mid-run — or a goal parked to **Blocked** — would leave that work on one disk. **`git.pushBranches`**
+(default `true`) pushes the goal branch to `merge.remote` after every gate that may have committed,
+at park, and at auto-retry. If no local branch exists when the goal is re-taken, the driver fetches
+`<remote>/goal/<N>-<slug>` and resumes from it — so a second agent, or you on a different computer,
+can pick up a parked goal exactly where it stopped.
+
+Every checkpoint push is **best-effort**: no remote configured, or a push that fails, is logged and
+the goal continues — it never fails a gate and never parks anything, so auto mode still needs no
+remote. Once a goal merges, its remote branch is deleted along with the local one; parked branches
+are always kept. Set `git.pushBranches` to `false` to keep goal branches strictly local. It is the
+goal-branch counterpart to `merge.autoPush`, which pushes the *base* branch after a merge. Note that
+`git.pushBranches` is a separate knob from `merge.autoPush`: a repo that already set
+`merge.autoPush: false` to stay fully local will still push goal branches by default, since
+`git.pushBranches` defaults to `true` independently — set it to `false` too if you want the old
+fully-local behavior back.
 
 ### Auto-unblock — self-resolving gate failures
 
