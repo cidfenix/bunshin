@@ -88,8 +88,28 @@ test('driver.md documents every git.pushBranches behaviour', () => {
     'driver.md must name the pushed ref in the park comment so a second machine can resume'
   );
   assert.ok(
-    /git fetch <merge\.remote> <git\.branchPrefix><N>-<slug>/.test(driver),
-    'driver.md step 4 must be able to resume a goal from the remote branch'
+    /git -C <repo root> fetch <merge\.remote> <git\.branchPrefix><N>-<slug>/.test(driver),
+    'driver.md step 4 must be able to resume a goal from the remote branch, in an explicit repo'
+  );
+  assert.ok(
+    /push -u --force-with-lease <merge\.remote>\s*\n?<git\.branchPrefix><N>-<slug>/.test(driver),
+    'driver.md checkpoint pushes must use --force-with-lease (INTEGRATION rebases the branch)'
+  );
+  assert.ok(
+    !/push -u <merge\.remote>/.test(driver),
+    'driver.md must not leave any plain (lease-less) checkpoint push behind'
+  );
+  assert.ok(
+    /fetch <merge\.remote>\s*\n?\s*<git\.branchPrefix><N>-<slug>:<git\.branchPrefix><N>-<slug>/.test(driver),
+    'driver.md step 4 must fast-forward an existing local branch from the remote (ff-only refspec)'
+  );
+  // The sandboxed-auto carve-out must be stated at EVERY site that touches the remote, not just
+  // some: the contract paragraph, the per-gate checkpoint, PARK, auto-retry, the merged-branch
+  // delete, and step 4's two remote reads.
+  const carveOuts = driver.match(/sandboxed in `auto` mode/g) || [];
+  assert.ok(
+    carveOuts.length >= 7,
+    `every git.pushBranches remote site must state the sandboxed-auto carve-out (found ${carveOuts.length}, expected >= 7)`
   );
 });
 

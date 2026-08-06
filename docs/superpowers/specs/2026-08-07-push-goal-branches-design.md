@@ -41,10 +41,17 @@ without violating LOCKED decision 5's "auto mode needs no remote" guarantee.
 
 All pushes below happen only when `git.pushBranches` resolves true, and all are best-effort.
 
-1. **After each gate step completes** — `git -C <worktree> push -u <merge.remote> <branch>`.
+1. **After each gate step completes** —
+   `git -C <worktree> push -u --force-with-lease <merge.remote> <branch>`.
    This covers the `implement` gate's goal commit, the `verify` gate's screenshot commit, and any
    custom `command`/`skill` gate that commits. The **driver** owns the remote, not the gate briefs,
    so `gates/*.md` are unchanged. A push with nothing new is a cheap `Everything up-to-date`.
+   The lease is required for the same reason PR mode's push needs it (item 6): INTEGRATION rebases the
+   branch before merging, so once a re-gate failure sends a rebased branch back through PARK or
+   auto-retry, a plain push is rejected as non-fast-forward — and, being best-effort, fails *silently*,
+   leaving a stale pre-rebase head on the remote precisely on the path most likely to park. Safe for
+   the same reason: Bunshin is the sole writer of `<git.branchPrefix>*` branches, and
+   `--force-with-lease` still refuses if someone else moved the ref.
 
 2. **On PARK → Blocked** — push first, then include the ref in the comment:
    `Blocked: <reason> (branch: <git.branchPrefix><N>-<slug>, pushed to <merge.remote>)`.
@@ -53,11 +60,28 @@ All pushes below happen only when `git.pushBranches` resolves true, and all are 
 3. **On auto-retry → Pending** — push, and name the pushed ref in the `Auto-retry` comment next to
    the head sha it already records.
 
-4. **Resume ladder (driver step 4), new bottom rung** — when neither the worktree nor the local
-   branch exists, but `<merge.remote>/<git.branchPrefix><N>-<slug>` does, fetch it and cut the
-   worktree from the remote branch rather than starting fresh off the base branch. This is the rung
-   that makes a Blocked goal resumable from a different computer. It is tried before the existing
-   "create fresh" rung and after the existing local-worktree / local-branch rungs.
+4. **Resume ladder (driver step 4)** — two changes, so the ladder always resumes whatever is
+   furthest along:
+   - **New rung** — when neither the worktree nor the local branch exists, but
+     `<merge.remote>/<git.branchPrefix><N>-<slug>` does, fetch it and cut the worktree from the remote
+     branch rather than starting fresh off the base branch. This is the rung that makes a Blocked goal
+     resumable from a different computer. It is tried before the existing "create fresh" rung and
+     after the existing local-worktree / local-branch rungs.
+   - **The existing local-branch rung fast-forwards from the remote first.** A parked goal ALWAYS
+     keeps its local branch, so on the machine that parked it the local rung always wins and the new
+     rung above never fires — meaning work another machine (or a human) pushed to the same branch
+     would be silently ignored, and in `auto` mode then merged over and its remote branch deleted.
+     Before adding the worktree, fetch the branch with an **ff-only refspec**
+     (`git -C <repo root> fetch <merge.remote> <branch>:<branch>` — no leading `+`, so git itself
+     refuses any update that is not a fast-forward; never a `reset`, a `--force` or a `checkout -B`).
+     Best-effort like every other remote touch: no remote, no such branch, or a network failure just
+     continues with the local branch. If the fetch is rejected, the local branch may simply be ahead
+     (nothing to do) or the histories have **diverged** — in which case the **local branch wins**,
+     untouched, and the divergence is reported rather than guessed at.
+   - Both remote touches carry the same carve-out as the pushes: skipped when `git.pushBranches` is
+     `false` or the run is sandboxed in `auto` mode. Their `git` invocations name the repository
+     explicitly (`-C <repo root>`), since in orchestrator mode the cwd is the orchestrator folder,
+     not the triaged repo.
 
 5. **INTEGRATION, `auto` mode** — after the local `git branch -d`, also
    `git push <merge.remote> --delete <branch>`, best-effort. Goal branches are ephemeral checkpoints;
@@ -69,7 +93,8 @@ All pushes below happen only when `git.pushBranches` resolves true, and all are 
    pushed at gate time would otherwise be rejected as non-fast-forward. It is safe because Bunshin is
    the sole writer of `<git.branchPrefix>*` branches.
 
-7. **Sandboxed runs** — in `auto` mode, goal-branch pushes are **skipped**, the same rule the sandbox
+7. **Sandboxed runs** — in `auto` mode, goal-branch pushes (and, with them, step 4's remote reads and
+   the merged branch's remote delete) are **skipped**, the same rule the sandbox
    already applies to `merge.autoPush`. The isolated clone's `origin` is the *host repository path*,
    so pushing there would not help a second machine and would write the host `.git` — which LOCKED
    decision 5 forbids. Sandboxed **PR** mode pushes normally, since the clone's `origin` is the real

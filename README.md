@@ -375,10 +375,14 @@ no accumulating session context to compact there.
 
 A goal's work sits on `goal/<N>-<slug>` in a local worktree until it merges, so an agent that stops
 mid-run — or a goal parked to **Blocked** — would leave that work on one disk. **`git.pushBranches`**
-(default `true`) pushes the goal branch to `merge.remote` after every gate that may have committed,
-at park, and at auto-retry. If no local branch exists when the goal is re-taken, the driver fetches
-`<remote>/goal/<N>-<slug>` and resumes from it — so a second agent, or you on a different computer,
-can pick up a parked goal exactly where it stopped.
+(default `true`) pushes the goal branch to `merge.remote` after each gate step completes (passing or
+failing), at park, and at auto-retry. When the goal is re-taken, the driver picks up whatever is
+furthest along: if no local branch exists it fetches `<remote>/goal/<N>-<slug>` and resumes from it;
+if a local branch does exist it first fast-forwards it from the remote — so a second agent, or you on
+a different computer, can pick up a parked goal exactly where it stopped, and the machine that
+originally parked it never resumes stale work. That fast-forward is strictly fast-forward: it can
+never discard a local commit, and if the two histories have diverged the local branch wins and the
+divergence is reported for you to reconcile.
 
 Every checkpoint push is **best-effort**: no remote configured, or a push that fails, is logged and
 the goal continues — it never fails a gate and never parks anything, so auto mode still needs no

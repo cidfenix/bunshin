@@ -186,13 +186,19 @@ is the running log. Newest entries at the end. Grep it for a ticket id or topic;
 - **push goal branches**: goal branches are now checkpointed to `merge.remote` instead of living only
   on the machine that produced them. New `git.pushBranches` config (boolean, absent ⇒ `true`;
   `resolvePushBranches` in `src/util.js`, `test/pushBranches.test.js` — which also guards both config
-  templates and the shipped driver text). The driver pushes `<branchPrefix><N>-<slug>` after every
-  gate step that may have committed, at PARK, and at auto-retry, and gained a step-4 resume rung that
-  fetches `<remote>/<branch>` when no local branch exists — that rung is what lets a second agent, or
-  a different computer, resume a parked goal. Every checkpoint push is best-effort (no remote / a
-  failed push is logged, never a gate failure or a park), so auto mode still needs no remote. A merged
-  goal's remote branch is deleted with its local one; parked branches are kept. PR-mode integration
-  now pushes with `--force-with-lease` — the pre-PR rebase rewrites shas the checkpoints already
-  pushed, which a plain push would reject. Sandboxed auto runs skip the pushes (the clone's `origin`
-  is the host repo path). Placed in the `git` block, deliberately distinct from `merge.autoPush` (base
+  templates and the shipped driver text). The driver pushes `<branchPrefix><N>-<slug>` after each
+  gate step completes (passing or failing), at PARK, and at auto-retry, and driver step 4 now syncs
+  with the remote on the way back in: it resumes from `<remote>/<branch>` when no local branch exists,
+  and fast-forwards the local branch from the remote when one does — together they let a second agent,
+  or a different computer, resume a parked goal without the originating machine silently resuming (and
+  merging) stale work. That fast-forward uses an ff-only refspec — never a reset or a force — and on a
+  diverged history the local branch wins and the divergence is reported. Every checkpoint push is
+  best-effort (no remote / a failed push is logged, never a gate failure or a park), so auto mode still
+  needs no remote. A merged goal's remote branch is deleted with its local one; parked branches are
+  kept. Both the checkpoint pushes and PR-mode integration push with `--force-with-lease` — the
+  pre-merge rebase rewrites shas the checkpoints already pushed, which a plain push would reject
+  (silently, on the best-effort path); Bunshin is the sole writer of `<branchPrefix>*` branches, and
+  the lease still refuses if anyone else moved the ref. Sandboxed auto runs skip the pushes and the
+  step-4 remote reads (the clone's `origin` is the host repo path). Placed in the `git` block,
+  deliberately distinct from `merge.autoPush` (base
   branch). Design: `docs/superpowers/specs/2026-08-07-push-goal-branches-design.md`.

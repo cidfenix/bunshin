@@ -143,15 +143,20 @@ Editing CLI behaviour → `src/`. Editing how goals get implemented/verified/rev
    --orchestrator` errors (out of scope for now).
 
    **Branch checkpoints (`git.pushBranches`, default `true`):** the goal branch itself is pushed to
-   `merge.remote` after every gate step that may have committed, at PARK, and at auto-retry, so a
-   stopped agent or a parked goal does not strand its work on one disk; driver step 4 gained a rung
+   `merge.remote` after EACH gate step completes (passing or failing), at PARK, and at auto-retry, so
+   a stopped agent or a parked goal does not strand its work on one disk; driver step 4 gained a rung
    that resumes a goal from `<remote>/<branch>` when no local branch exists (the "another computer"
-   path). Every such push is **best-effort** — no remote, or a failed push, is logged and the goal
-   continues, so the "auto mode needs no remote" guarantee above still holds. A MERGED goal's remote
-   branch is deleted alongside the local one; parked branches are kept. Sandboxed `auto` runs skip
-   these pushes (the clone's `origin` is the host repo path — pushing there would write the host
-   `.git`, which decision 5's sandbox rules forbid); sandboxed PR runs push normally. PR mode's
-   integration push is `--force-with-lease`, since the pre-PR rebase rewrites already-pushed shas.
+   path) and, when a local branch DOES exist, first FAST-FORWARDS it from the remote (ff-only refspec,
+   never a reset/force; on divergence the local branch wins and the divergence is reported) — without
+   that, the local rung would always win on the originating machine and silently merge over newer work
+   another machine pushed. Every such push is **best-effort** — no remote, or a failed push, is logged
+   and the goal continues, so the "auto mode needs no remote" guarantee above still holds. A MERGED
+   goal's remote branch is deleted alongside the local one; parked branches are kept. Sandboxed `auto`
+   runs skip these pushes and step 4's remote reads (the clone's `origin` is the host repo path —
+   pushing there would write the host `.git`, which decision 5's sandbox rules forbid); sandboxed PR
+   runs push normally. BOTH the checkpoint pushes and PR mode's integration push use
+   `--force-with-lease`, since the pre-merge rebase rewrites already-pushed shas (and Bunshin is the
+   sole writer of `<branchPrefix>*` branches, so the lease still refuses if anyone else moved the ref).
    It sits in the `git` block (branch lifecycle), NOT in `merge` — distinct from `merge.autoPush`,
    which pushes the BASE branch. Pure `resolvePushBranches()` in `src/util.js` (unit-tested in
    `test/pushBranches.test.js`, which also guards both config templates and the shipped driver text).
