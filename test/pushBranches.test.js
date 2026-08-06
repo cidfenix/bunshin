@@ -72,4 +72,25 @@ test('both config templates ship git.pushBranches: true with a note', () => {
   }
 });
 
+test('driver.md documents every git.pushBranches behaviour', () => {
+  const driver = read('template/driver.md');
+  assert.ok(driver.includes('git.pushBranches'), 'driver.md must name the git.pushBranches key');
+  assert.ok(
+    /--force-with-lease/.test(driver),
+    'driver.md must force-with-lease the PR-mode branch push (the rebase rewrites pushed shas)'
+  );
+  assert.ok(
+    /push\s+<merge\.remote>\s+--delete/.test(driver),
+    'driver.md must delete the remote goal branch after an auto-mode merge'
+  );
+  assert.ok(
+    /pushed to <merge\.remote>/.test(driver),
+    'driver.md must name the pushed ref in the park comment so a second machine can resume'
+  );
+  assert.ok(
+    /git fetch <merge\.remote> <git\.branchPrefix><N>-<slug>/.test(driver),
+    'driver.md step 4 must be able to resume a goal from the remote branch'
+  );
+});
+
 console.log(`\npushBranches.test.js: ${passed} passed`);

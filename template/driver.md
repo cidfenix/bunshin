@@ -42,7 +42,10 @@ detect or care about this — the pipeline is identical — with one nuance at I
 you do the usual local `--ff-only` merge into *this clone's* `<git.baseBranch>` and **do not push
 anywhere**; the Bunshin CLI on the host fast-forwards its own base branch from the clone after you exit.
 In **PR** mode you push + open the PR against the remote exactly as today (the clone's `origin` already
-points at the real remote). Nothing else changes.
+points at the real remote). The same split applies to `git.pushBranches` (below): **sandboxed + auto
+mode ⇒ skip the goal-branch pushes entirely** — the clone's `origin` is the HOST REPOSITORY PATH, so
+pushing there would not help a second machine and would write the host `.git`, which the sandbox
+guarantees forbid. Sandboxed **PR** mode pushes goal branches normally. Nothing else changes.
 
 **Context cleanup.** If the launch prompt named a `contextCleanupEvery` cadence (Claude Code only --
 `codex exec` restarts fresh per invocation, so this doesn't apply there), track a running count of
@@ -61,6 +64,21 @@ inside it grows without bound and eventually exceeds its practical size limit. `
 when a DURABLE fact it documents changed (architecture, a convention, a LOCKED decision, the layout, a
 now-wrong stated count) — edited in place, never appended to as a running list. In **ORCHESTRATOR
 MODE** the path is resolved against the TRIAGED repo's own root, so each repo keeps its own changelog.
+
+**Branch checkpoints (`git.pushBranches`).** A goal's work lives on `<git.branchPrefix><N>-<slug>`
+inside a local worktree until it merges — so an agent that stops, or a goal parked to **Blocked**,
+leaves that work on exactly ONE disk. Unless the config sets `git.pushBranches` to `false` (absent ⇒
+**true**), push the goal branch to `<merge.remote>` (default `origin`) at each of these moments:
+**after every gate step that completes** (step 5 — covers the `implement` commit, the `verify`
+screenshot commit, and any custom gate that commits), **at PARK**, and **at auto-retry** (step 6).
+The command is always `git -C <git.worktreeBaseDir>/<N>-<slug> push -u <merge.remote>
+<git.branchPrefix><N>-<slug>` — idempotent, and a no-op (`Everything up-to-date`) when nothing is new.
+**Every one of these pushes is BEST-EFFORT: no remote named `merge.remote`, or a push failing for any
+reason, is reported and the run CONTINUES — it never fails a gate, never parks a goal, and never
+changes a gate verdict** (the "auto mode needs no remote" guarantee is preserved). This is the GOAL
+branch; `merge.autoPush` is the separate knob for the BASE branch after a merge. See also step 4's
+resume-from-remote rung — that is what lets another agent, or you on another computer, pick a parked
+goal back up.
 
 ## The queue (Trello or Jira)
 
@@ -142,6 +160,14 @@ just-updated base and re-runs `commands.gateChecks` before its fast-forward). A 
    - Else if branch `<git.branchPrefix><N>-<slug>` already exists (the post-park state — e.g. a
      manual unblock) → `git worktree add <git.worktreeBaseDir>/<N>-<slug> <git.branchPrefix><N>-<slug>`
      (NO `-b`), continuing from the branch head.
+   - Else if `git.pushBranches` is not `false` AND the branch exists ON THE REMOTE — a goal another
+     agent (or another COMPUTER) checkpointed and left, typically parked to Blocked and unblocked
+     here → `git fetch <merge.remote> <git.branchPrefix><N>-<slug>` then
+     `git worktree add <git.worktreeBaseDir>/<N>-<slug> -b <git.branchPrefix><N>-<slug> FETCH_HEAD`,
+     continuing from the pushed head instead of discarding it. Check with
+     `git ls-remote --exit-code --heads <merge.remote> <git.branchPrefix><N>-<slug>`; ANY failure
+     here (no remote, no such branch, network down) is not an error — fall through to the fresh
+     rung below.
    - Else → create fresh:
      `git worktree add <git.worktreeBaseDir>/<N>-<slug> -b <git.branchPrefix><N>-<slug> <git.baseBranch>`
    All implementation/test work happens in that worktree directory. Either resume case is "a RESUME"
@@ -166,8 +192,12 @@ just-updated base and re-runs `commands.gateChecks` before its fast-forward). A 
    If ANY gate failed → run **AUTO-UNBLOCK (classify at park time)** (see the section below). A
    self-resolvable failure with retry budget left goes BACK TO PENDING with an `Auto-retry` comment —
    **keeping the worktree AND the branch**. Everything else (human-needed, budget exhausted, or
-   `unblock.auto: false`) → PARK: transition the issue **→ Blocked** and comment
-   `Blocked: <reason> (branch: <git.branchPrefix><N>-<slug>)`; remove the worktree
+   `unblock.auto: false`) → PARK: push the branch first (`git.pushBranches`, best-effort — the
+   parked branch is exactly what a human or another machine will resume from), transition the issue
+   **→ Blocked** and comment
+   `Blocked: <reason> (branch: <git.branchPrefix><N>-<slug>, pushed to <merge.remote>)` — if the
+   push did not happen (disabled, no remote, or it failed), say so in the comment instead of naming
+   a ref that isn't there; remove the worktree
    (`git worktree remove --force <git.worktreeBaseDir>/<N>-<slug>`) but KEEP the branch.
    - WINDOWS: `git worktree remove` may fail with "Filename too long" because of the deep
      `node_modules` paths. If so, delete the directory with a long-path-safe method (robocopy-mirror
@@ -224,6 +254,14 @@ The gates are a **per-repo ordered preset** in `gates.steps`. **Resolve the list
 **fail-fast**: on the FIRST failure, stop (do not run the remaining gates) and route the failure through
 **AUTO-UNBLOCK** — retry or PARK. Number the gates by their **1-based position** for heartbeats
 (1st→`gate1`, 2nd→`gate2`, 3rd+→`gate3`) and for the reason (`Gate <position> (<name>): <short error>`).
+
+**After EACH gate step completes** (passing or failing), checkpoint the branch: unless
+`git.pushBranches` is `false` — or you are sandboxed in `auto` mode — run
+`git -C <git.worktreeBaseDir>/<N>-<slug> push -u <merge.remote> <git.branchPrefix><N>-<slug>`.
+This is what puts the `implement` gate's commit, the `verify` gate's screenshot commit, and any
+custom `command`/`skill` gate's commit beyond the reach of the machine you are on. The driver owns
+this push — the gate briefs never push. **Best-effort: report a failure and carry on** (a failed
+checkpoint must never turn a passing gate into a failure, nor a failing gate into a different one).
 
 Each step in `gates.steps` is EITHER a **built-in gate** (a string name, or `{"gate": "<name>"}`), OR a
 **custom step** (`{"command": "<shell>"}` or `{"skill": "<name>"}`). An optional `name` on an object
@@ -387,9 +425,11 @@ failure (INTEGRATION), an open-PR failure, triage's no-match/ambiguity, and the 
    and crash-safe across sessions. Comments written by humans — including manual unblock comments —
    NEVER count against the budget.
 2. Attempt number > `maxRetries` ⇒ the budget is exhausted — PARK as above.
-3. Comment on the issue: `Auto-retry <n>/<maxRetries>: Gate <position> (<name>) — ` followed by the
+3. Push the branch (`git.pushBranches`, best-effort — see **Branch checkpoints** above), then
+   comment on the issue: `Auto-retry <n>/<maxRetries>: Gate <position> (<name>) — ` followed by the
    FULL gate verdict, then the scoped retry instructions: the findings above are the COMPLETE fix
-   list; resume on branch `<git.branchPrefix><N>-<slug>` from `<head sha>`; do NOT redo anything
+   list; resume on branch `<git.branchPrefix><N>-<slug>` from `<head sha>` (pushed to
+   `<merge.remote>` — omit this if the push was disabled or failed); do NOT redo anything
    the verdict verified sound.
 4. Transition the issue **In Progress → Pending** and **KEEP the worktree AND the branch** — no
    teardown, so the retry skips the fresh-worktree install (step 4 reuses it). The goal leaves the
@@ -420,7 +460,10 @@ at it).
 4. Clean up: `git worktree remove <git.worktreeBaseDir>/<N>-<slug>` and
    `git branch -d <git.branchPrefix><N>-<slug>`. (On Windows, if `git worktree remove` fails with
    "Filename too long", delete the dir with a long-path-safe method then `git worktree prune` — see
-   the PARK note.)
+   the PARK note.) If you pushed this branch (`git.pushBranches`), delete it on the remote too:
+   `git push <merge.remote> --delete <git.branchPrefix><N>-<slug>` — **best-effort**, and only for a
+   MERGED goal (the checkpoint has served its purpose; the work is on `<git.baseBranch>`). Parked
+   branches are NEVER deleted, locally or remotely — that is the point of keeping them.
 5. Record the resulting merge sha, transition the issue **→ Done**, comment `merged: <sha>`.
 
 ### mode `pr` — open a Pull Request (human review gate)
@@ -429,7 +472,14 @@ Needs a git remote (`merge.remote`, default `origin`) and GitHub access — an a
 1. Rebase onto the latest base: `git fetch <merge.remote>` then
    `git -C <worktree> rebase <merge.remote>/<git.baseBranch>` (fall back to local `<git.baseBranch>`
    if there's no remote-tracking base). Re-run `commands.gateChecks`. Fail → route through **AUTO-UNBLOCK** (a merge re-gate failure is typically self-resolvable): retry or PARK `Merge re-gate failed — <short error>`.
-2. Push the branch: `git -C <worktree> push -u <merge.remote> <git.branchPrefix><N>-<slug>`.
+2. Push the branch: `git -C <worktree> push -u --force-with-lease <merge.remote>
+   <git.branchPrefix><N>-<slug>`. The `--force-with-lease` is REQUIRED whenever `git.pushBranches`
+   checkpointed this branch earlier: step 1 just rebased it, rewriting the shas already on the
+   remote, so a plain push would be rejected as non-fast-forward. It is safe because Bunshin is the
+   sole writer of `<git.branchPrefix>*` branches, and `--force-with-lease` still refuses if someone
+   else moved the ref. (Harmless when nothing was pushed before.) Unlike the checkpoint pushes, THIS
+   push is not best-effort — PR mode cannot open a PR without it, so a failure routes through
+   **AUTO-UNBLOCK** like the open-PR step below.
 3. Open a PR from the branch into `<git.baseBranch>`:
    - **If `merge.openPr` is set** (a `{ "skill": "..." }` slash-command/skill or `{ "command": "..." }`
      shell command — set EITHER, not both; blank/absent ⇒ default), open the PR by invoking that
