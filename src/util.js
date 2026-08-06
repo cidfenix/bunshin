@@ -383,6 +383,29 @@ function resolveAutoPush(config) {
   return raw;
 }
 
+// --- Configurable goal-branch push (crash/hand-off durability) -----------------
+// A goal's work lives on `<git.branchPrefix><N>-<slug>` inside a local worktree until it merges,
+// so an agent that stops — or a goal parked to Blocked — leaves that work on exactly ONE disk.
+// `git.pushBranches` (default true) has the driver push the goal branch to `merge.remote` after
+// every gate that may have committed, at PARK, and at auto-retry, and lets driver step 4 resume a
+// goal from `<remote>/<branch>` on a DIFFERENT machine. It sits in the `git` block because it is
+// branch-lifecycle, not integration — the sibling knob `merge.autoPush` pushes the BASE branch
+// after a merge. Best-effort at the call site (no remote / a failed push never fails or parks the
+// goal, preserving the "auto mode needs no remote" guarantee) — this resolver only validates the
+// boolean. `resolvePushBranches` is pure (no fs/spawn) so it is unit-testable. A non-boolean value
+// throws a clear `git.pushBranches`-referencing error.
+function resolvePushBranches(config) {
+  const raw = config && config.git && config.git.pushBranches;
+  if (raw == null) return true;
+  if (typeof raw !== 'boolean') {
+    throw new Error(
+      `Invalid git.pushBranches in ${CONFIG_FILENAME}: expected a boolean (absent => true), got ` +
+        `${JSON.stringify(raw)}.`
+    );
+  }
+  return raw;
+}
+
 // --- Configurable concurrency (goals in flight) --------------------------------
 // How many goals the driver may work AT THE SAME TIME (worktree cut, gates running).
 // Historically hard-serial (exactly one); a top-level `concurrency` in the config now bounds
@@ -612,6 +635,7 @@ module.exports = {
   resolveOpenPr,
   resolvePrLabels,
   resolveAutoPush,
+  resolvePushBranches,
   resolveConcurrency,
   resolveUnblock,
   resolveContextCleanup,
